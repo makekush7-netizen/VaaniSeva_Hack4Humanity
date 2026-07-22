@@ -1,0 +1,50 @@
+# Secrets - NEVER commit these
+.env
+*.csv
+*credentials*
+
+# One-off experiment / test scripts with API keys (keep local)
+scripts/test_cartesia.py
+scripts/test_elevenlabs2.py
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Build artifacts
+build/
+dist/
+*.zip
+
+# Node
+node_modules/
+.vite/
+
+# Large binary assets (share manually via the "large models" folder)
+# Track README.md but ignore actual binary files
+large models/*.mp4
+large models/*.glb
+large models/*.fbx
+large models/*.gltf
+website/public/hero.mp4
+website/public/models/
+
+# Large binary/media assets
+*.mp4
+*.glb
+*.gltf
+*.fbx
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+.vercel
+.env*.local

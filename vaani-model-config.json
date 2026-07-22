@@ -1,0 +1,281 @@
+{
+  "_meta": {
+    "description": "Technical migration config for the Vaani/AURA avatar model. All values sourced from AvatarModel.jsx, AuraWidget.jsx, AuraFloatingWidget.jsx, and EmbeddedAura.jsx. Animation keys are stored/looked up in lowercase — see animationKeyNote.",
+    "modelFiles": [
+      "/models/model_female.glb",
+      "/models/model_male.glb",
+      "/animatedfemalemodel.glb"
+    ],
+    "animationKeyNote": "The AnimationMixer stores ALL clip actions keyed by clip.name.toLowerCase(). All lookups and event dispatches therefore use lowercase. The actual clip names inside the GLB may have different casing (e.g. 'MainIdle', 'Waveing') — confirm with a GLB inspector if exact casing is needed for non-code use.",
+    "morphKeyNote": "Morph target names are looked up directly from node.morphTargetDictionary using the exact strings listed — these ARE case-sensitive and must match the GLB exactly. The priority (first-found wins) is documented per field."
+  },
+
+  "animations": {
+    "_note": "All values below are the lowercase lookup keys used in code. Actual GLB clip name casing may differ.",
+    "idle": "mainidle",
+    "idleFallback": "idle",
+    "talking": "talk",
+    "talkingFallback": "talking",
+
+    "looping": [
+      "mainidle",
+      "idle",
+      "bashful",
+      "thinking",
+      "talk",
+      "talking"
+    ],
+
+    "oneShot": [
+      "waveing",
+      "wave",
+      "laughing",
+      "laugh",
+      "surprised",
+      "shock",
+      "thankful"
+    ],
+
+    "emotions": {
+      "happy":   { "clip": "waveing",   "fallback": "wave",     "loop": false },
+      "laugh":   { "clip": "laughing",  "fallback": "laugh",    "loop": false },
+      "shock":   { "clip": "surprised", "fallback": "shock",    "loop": false },
+      "sad":     { "clip": "bashful",   "fallback": "sad",      "loop": true  },
+      "thankful":{ "clip": "thankful",  "fallback": null,       "loop": false },
+      "thinking":{ "clip": "thinking",  "fallback": null,       "loop": true  },
+      "waving":  { "clip": "waveing",   "fallback": "wave",     "loop": false }
+    },
+
+    "animationMapFromLLMEmotionTag": {
+      "_note": "When the LLM returns [EMOTION: <tag>], AuraWidget maps to these clip keys before dispatching aura:setAnimation.",
+      "happy":   "mainidle",
+      "laugh":   "laughing",
+      "thinking":"thinking",
+      "thankful":"thankful",
+      "bashful": "bashful",
+      "waving":  "waveing",
+      "wave":    "waveing"
+    },
+
+    "idleBashfulLoop": {
+      "_note": "Ambient idle variety: every 8 s there is a 40 % chance of cross-fading to 'bashful' for 4 s then returning to 'mainidle'. Implemented in AvatarModel.jsx with setInterval.",
+      "intervalMs": 8000,
+      "durationMs": 4000,
+      "probability": 0.4
+    },
+
+    "transitionFadeSeconds": 0.5
+  },
+
+  "morphTargets": {
+    "_note": "All strings are exact keys as they appear in node.morphTargetDictionary. Priority order listed where multiple names are tried.",
+
+    "mouthOpen": "mouthOpen",
+    "mouthOpenFallback": "jawOpen",
+    "mouthSmile": "mouthSmile",
+    "mouthFrown": "mouthFrown",
+    "mouthFrownFallbacks": ["mouthRollLower", "mouthShrugLower", "mouthPucker"],
+
+    "blinkBoth": "eyesClosed",
+    "blinkBothAliases": ["Blink", "blink", "Eyes_Blink", "eyes_closed"],
+    "blinkLeft": "eyeBlinkLeft",
+    "blinkLeftAlias": "eyeBlink_L",
+    "blinkRight": "eyeBlinkRight",
+    "blinkRightAlias": "eyeBlink_R",
+    "blinkPriorityOrder": [
+      "eyesClosed",
+      "eyeBlinkLeft",
+      "eyeBlink_L",
+      "Blink",
+      "blink",
+      "Eyes_Blink",
+      "eyes_closed"
+    ],
+
+    "browInnerUp": "browInnerUp",
+    "browOuterUp": "browOuterUp",
+    "browDown": "browDown",
+    "eyeWide": "eyeWide",
+    "eyeSquintLeft": "eyeSquintLeft",
+    "eyeSquintRight": "eyeSquintRight",
+
+    "emotionMorphSummary": {
+      "happy":   ["mouthSmile → 1.0", "browInnerUp → 1.0", "eyeSquintLeft → 0.6", "eyeSquintRight → 0.6"],
+      "laugh":   ["eyesClosed → 1.0", "mouthSmile → 1.0", "mouthOpen oscillates 0.2–0.7 at ~15 Hz (Haha effect)"],
+      "shock":   ["mouthOpen → 0.6 (fallback: jawOpen)", "browOuterUp → 1.0 (fallback: browInnerUp)", "eyeWide → 1.0"],
+      "sad":     ["mouthFrown → 0.8 (fallback chain: mouthRollLower, mouthShrugLower, mouthPucker)", "browDown → 0.8"],
+      "neutral": ["all emotion morphs lerp back to 0 at rate 0.1 per frame, except blink morphs"]
+    },
+
+    "morphsResetEachFrame": [
+      "mouthSmile", "browInnerUp", "jawOpen", "mouthOpen",
+      "browOuterUp", "eyeWide", "mouthFrown", "browDown"
+    ],
+
+    "lipSyncMorph": "mouthOpen",
+    "lipSyncRange": [0, 1]
+  },
+
+  "bones": {
+    "_note": "Exact GLB bone names are NOT hardcoded in the codebase — the code uses fuzzy string matching (lowercase includes/equals). Run the model through a GLB inspector (e.g. gltf.report, three.js editor, or console.log all isBone nodes) to get exact names. Patterns the code searches for are listed below.",
+    "eyeLeft": {
+      "searchPatterns": ["lefteye (contains)", "eyeleft (===)", "eye_l (===)", "eye.l (contains)"],
+      "likelyCandidates": ["LeftEye", "EyeLeft", "Eye_L", "Eye.L"]
+    },
+    "eyeRight": {
+      "searchPatterns": ["righteye (contains)", "eyeright (===)", "eye_r (===)", "eye.r (contains)"],
+      "likelyCandidates": ["RightEye", "EyeRight", "Eye_R", "Eye.R"]
+    }
+  },
+
+  "eyeRotationLimits": {
+    "_note": "Two separate clamp ranges exist depending on the source of the rotation.",
+    "cameraTracking": {
+      "_source": "useFrame camera-follow loop in AvatarModel.jsx",
+      "yawMin": -0.6,
+      "yawMax":  0.6,
+      "pitchMin": -0.35,
+      "pitchMax":  0.35,
+      "lerpFactor": 0.2,
+      "bone.rotation.y": "yaw (left/right look)",
+      "bone.rotation.x": "pitch (up/down look)"
+    },
+    "manualEventSetEye": {
+      "_source": "aura:setEye event handler in AvatarModel.jsx",
+      "yawMin": "unclamped (caller responsible)",
+      "yawMax": "unclamped",
+      "pitchMin": -0.14,
+      "pitchMax":  0.14
+    },
+    "saccadeAmplitude": {
+      "x": "±0.05 sinusoidal + occasional ±0.1 random spike (prob 0.02/frame)",
+      "y": "±0.05 cosinusoidal + occasional ±0.05 random spike"
+    }
+  },
+
+  "breathingAnimation": {
+    "_note": "Implemented in useFrame — not a GLB clip. Applied as a scale oscillation.",
+    "formula": "scale = baseScale * (1 + sin(elapsedTime * 1.5) * 0.008)",
+    "amplitudeFraction": 0.008,
+    "frequencyHz": 0.239
+  },
+
+  "blinkBehavior": {
+    "intervalSeconds": "random, 4–8 s (blinkTimer > 4 + random()*4)",
+    "durationMs": 150,
+    "morphValue": 1,
+    "fallback": "If no blink morph found, scales eye meshes (node.name contains 'Eye' or 'eye') to scaleY=0.1 for 150 ms"
+  },
+
+  "events": {
+    "_note": "All events are dispatched/received on the global window object via CustomEvent.",
+
+    "setMorph": {
+      "event": "aura:setMorph",
+      "direction": "UI → AvatarModel",
+      "payload": "{ name: string, value: number }",
+      "example": "{ name: 'mouthOpen', value: 0.72 }",
+      "description": "Sets a single morph target influence on all meshes that have the named target."
+    },
+
+    "setEye": {
+      "event": "aura:setEye",
+      "direction": "UI → AvatarModel",
+      "payload": "{ yaw?: number, pitch?: number }",
+      "example": "{ yaw: 0.3, pitch: -0.1 }",
+      "description": "Directly rotates all eye bones. Pitch is hard-clamped to ±0.14 inside the handler."
+    },
+
+    "setEmotion": {
+      "event": "aura:setEmotion",
+      "direction": "UI → AvatarModel",
+      "payload": "detail: string  (emotion name)",
+      "validValues": ["happy", "laugh", "shock", "sad", "thankful", "thinking", "neutral"],
+      "description": "Sets emotionRef which drives morph-target expressions each frame. Emotion auto-resets to 'neutral' after 3 s. Also triggers the corresponding animation oneshot/loop via onEmotion handler."
+    },
+
+    "talking": {
+      "event": "aura:talking",
+      "direction": "UI → AvatarModel",
+      "payload": "detail: boolean",
+      "example": "true  (start talking animation) | false (stop)",
+      "description": "Fades the 'talk'/'talking' clip in or out. Idle is NOT automatically faded — talk is blended on top."
+    },
+
+    "setAnimation": {
+      "event": "aura:setAnimation",
+      "direction": "UI → AvatarModel",
+      "payload": "detail: string  (clip name, will be lowercased internally)",
+      "example": "\"waveing\" | \"thinking\" | \"mainidle\"",
+      "description": "Stops all current actions (fadeOut 0.3 s), then plays the named clip. Used by the chat widget after receiving an LLM [EMOTION:] tag."
+    },
+
+    "openAura": {
+      "event": "openAura",
+      "direction": "Any page code → AuraFloatingWidget",
+      "payload": "none",
+      "description": "Programmatically opens the floating chat widget."
+    }
+  },
+
+  "systemPrompt": {
+    "_note": "The backend Python files (main.py / app.py) are NOT present in this workspace — only the venv folder exists. The system prompt was backend-controlled (Gemini API) and cannot be reconstructed from frontend code alone. What IS known from frontend parsing logic is the expected LLM output format:",
+    "expectedResponseFormat": {
+      "emotionTag": "[EMOTION: <word>]  — optional, placed anywhere in the response text. Parsed by frontend regex /\\[EMOTION:\\s*(\\w+)\\]/i",
+      "actionTag": "[ACTION: {\"type\":\"...\",\"target\":\"...\",\"value\":\"...\"}]  — optional. Parsed by frontend regex /\\[ACTION:\\s*({[^}]+})\\]/i",
+      "actionTypes": ["navigate", "scroll", "click", "fill", "highlight"],
+      "bodyText": "The remainder of the response after stripping tags is the spoken/displayed text."
+    },
+    "knownEmotionTagValues": ["happy", "laugh", "thinking", "thankful", "bashful", "waving", "wave"],
+    "ttsStripRules": [
+      "Emoji characters stripped (Unicode ranges \\u2700–\\u27BF, \\uE000–\\uF8FF, \\uD83C–\\uD83E ranges)",
+      "Parenthetical text stripped: (.*?)",
+      "Square-bracket text stripped: [.*?]"
+    ],
+    "reconstructedPromptHint": "Based on widget intro message ('Hello! I am AURA, your AI assistant. How can I help you today?') and AuraFloatingWidget copy ('Hi! I'm AURA, your AI shopping assistant'), the persona is a helpful female AI shopping assistant for AuraMart. The prompt likely instructed the LLM to prefix responses with [EMOTION: <tag>] and optionally include [ACTION: {...}] for UI automation."
+  },
+
+  "sttConfig": {
+    "_note": "Two widgets have slightly different configs.",
+    "AuraWidget": {
+      "api": "window.SpeechRecognition || window.webkitSpeechRecognition",
+      "lang": "not set (inherits browser default locale)",
+      "continuous": false,
+      "interimResults": true,
+      "resultHandling": "Concatenates all result transcripts into input field. Auto-submits on 'onend'."
+    },
+    "AuraFloatingWidget": {
+      "api": "window.webkitSpeechRecognition",
+      "lang": "not set",
+      "continuous": false,
+      "interimResults": false,
+      "resultHandling": "Takes results[0][0].transcript, sets input, auto-calls sendMessage after 500 ms delay."
+    }
+  },
+
+  "ttsPipeline": {
+    "endpoint": "POST /synthesize",
+    "requestBody": {
+      "text": "string  (cleaned: emoji stripped, parentheticals stripped, square-brackets stripped)",
+      "voice": "'female' | 'male'  (matches modelType state)"
+    },
+    "responseFormat": "raw binary audio (ArrayBuffer) — decoded via Web Audio API audioContext.decodeAudioData()",
+    "audioPlayback": "AudioContext + AudioBufferSourceNode connected through an AnalyserNode to destination",
+    "lipSyncMethod": {
+      "analyser": {
+        "fftSize": 2048,
+        "dataArray": "Uint8Array of size analyser.frequencyBinCount (= fftSize/2 = 1024)",
+        "domain": "time-domain (getByteTimeDomainData)"
+      },
+      "volumeFormula": "volume = Math.min(1,  Math.sqrt( sum(((sample - 128)/128)^2) / bufferLength ) * 4 )",
+      "dispatch": "window.dispatchEvent(new CustomEvent('aura:setMorph', { detail: { name: 'mouthOpen', value: volume } }))",
+      "updateLoop": "requestAnimationFrame — runs every frame while audio is playing",
+      "onEnd": "cancelAnimationFrame; dispatch aura:setMorph { name:'mouthOpen', value:0 }; audioContext.close()"
+    },
+    "subtitleSync": {
+      "method": "Text split by spaces; each word displayed at evenly-spaced intervals calculated as audioBuffer.duration * 1000 / wordCount ms",
+      "displayedIn": "aura-subs overlay div inside the 3D canvas view"
+    },
+    "fallback": "If /synthesize returns non-OK, response text is displayed as subtitle for 3 s without audio."
+  }
+}
