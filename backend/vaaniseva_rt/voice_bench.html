@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VaaniSeva Arya Voice A/B</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #07110f; color: #effbf7; }
+    main { width: min(760px, calc(100vw - 40px)); padding: 32px; border: 1px solid #315d55; border-radius: 24px; background: #0a1b18; }
+    h1 { margin: 0 0 8px; } p { color: #a7c0b9; line-height: 1.5; }
+    section { margin-top: 22px; padding: 18px; border-radius: 16px; background: #102722; }
+    .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    button { border: 0; border-radius: 12px; padding: 14px; font: inherit; font-weight: 750; cursor: pointer; background: #61e2b6; color: #05251b; }
+    button:disabled { opacity: .45; cursor: wait; }
+    small { display: block; margin-top: 18px; color: #7f9d95; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Arya voice A/B</h1>
+  <p>This bypasses microphone, VAD, STT, Bedrock, tools, and conversation memory. Each click makes only one TTS request. Compare the same text and choose by natural Hindi, warmth, clarity, and pronunciation.</p>
+  <section>
+    <p><strong>Greeting:</strong> नमस्ते, मैं आर्या हूँ। बताइए, मैं आपकी कैसे मदद कर सकती हूँ?</p>
+    <div class="buttons">
+      <button data-provider="cartesia" data-sample="greeting">Round 1 Cartesia Arya</button>
+      <button data-provider="sarvam" data-sample="greeting">Current Sarvam Arya</button>
+    </div>
+  </section>
+  <section>
+    <p><strong>Scheme:</strong> पी एम किसान योजना की जानकारी मैं इस कॉल पर ही समझा सकती हूँ।</p>
+    <div class="buttons">
+      <button data-provider="cartesia" data-sample="scheme">Round 1 Cartesia Arya</button>
+      <button data-provider="sarvam" data-sample="scheme">Current Sarvam Arya</button>
+    </div>
+  </section>
+  <small id="status">No agent or language-model usage occurs on this page.</small>
+  <audio id="player"></audio>
+</main>
+<script>
+const player = document.querySelector('#player');
+const status = document.querySelector('#status');
+for (const button of document.querySelectorAll('button')) {
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    status.textContent = 'Generating this one voice sample…';
+    try {
+      const response = await fetch(`/voice-bench/audio/${button.dataset.provider}?sample=${button.dataset.sample}`);
+      if (!response.ok) throw new Error(await response.text());
+      const url = URL.createObjectURL(await response.blob());
+      player.src = url;
+      await player.play();
+      status.textContent = `Playing ${button.textContent}.`;
+      player.onended = () => URL.revokeObjectURL(url);
+    } catch (error) {
+      status.textContent = `Failed: ${error.message}`;
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+</script>
+</body>
+</html>

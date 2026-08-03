@@ -1,336 +1,59 @@
-# VaaniSeva
+# VaaniSeva — voice access to essential public information
 
-**Voice-First AI for Digital Inclusion**
+VaaniSeva is Team NovaFrost's Hack4Humanity 2026 project: a low-latency,
+multilingual voice agent that works through an ordinary telephone call or a web
+microphone. It helps callers navigate government schemes, recent mandi observations,
+and safe health information without requiring a smartphone or mobile data.
 
-VaaniSeva is a voice-based AI platform designed to bridge India's digital divide by providing multilingual, accessible digital services to 500M+ Indians who are excluded from smartphone-based services.
+## What judges can verify
 
----
+- A standalone Pipecat voice runtime (`backend/`) rather than a hosted Vapi dependency.
+- Bidirectional Twilio Media Streams with interruption/barge-in support.
+- Sarvam STT, Amazon Bedrock Nova reasoning, Cartesia/Sarvam speech, and persona routing.
+- An in-process MCP server whose tools enforce source labels and safety boundaries.
+- Read-only semantic RAG over DynamoDB vectors generated with Amazon Titan Embeddings v2,
+  with a curated official-source fallback when AWS retrieval is unavailable.
+- Live data.gov.in mandi observations that fail closed instead of inventing prices.
+- Low-volume handoff and search ambience with documented audio licences.
+- Privacy-minimised caller memory keyed by a one-way phone identifier.
+- A Vercel-ready website (`website/`) for browser voice and server-side callbacks.
 
-## 🎯 Problem Statement
+## Architecture
 
-Over 500 million Indians are excluded from digital services due to:
-- Lack of smartphone access
-- Limited digital literacy
-- Language barriers
-- Poor internet connectivity
+```text
+Phone caller -> Twilio -> HTTPS/WSS -> Caddy -> FastAPI/Pipecat
+Browser mic  -------------------------------> local PCM WebSocket
+                                                |
+                 Sarvam STT -> Bedrock Nova -> MCP tools -> Cartesia/Sarvam TTS
+                                                |            |
+                           Titan + DynamoDB RAG / data.gov.in / safe caller memory
+```
 
-## 💡 Solution
+See [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md), and
+[deployment](docs/DEPLOYMENT.md).
 
-VaaniSeva provides a simple voice-based interface accessible via basic feature phones, enabling users to access critical information and services through a phone call in their native language.
-
----
-
-## ✨ Key Features
-
-### 1. **Multi-Domain Information Access**
-- Government schemes and benefits
-- Healthcare information and guidance
-- Agricultural best practices and market prices
-- Civic services and local information
-
-### 2. **Multilingual Voice Interface**
-- Supports 8+ Indian languages
-- Automatic language detection
-- Natural conversation flow
-- No text input required
-
-### 3. **Smart Contextual Responses**
-- Location-aware information
-- Personalized recommendations
-- Context-sensitive answers
-- Real-time data integration
-
-### 4. **Intelligent Follow-up System**
-- Multi-turn conversations
-- Call-back functionality
-- SMS summaries in user's language
-- Conversation history
-
-### 5. **Privacy & Security**
-- End-to-end encryption
-- Anonymous usage option
-- Secure data handling
-- GDPR-compliant architecture
-
----
-
-## 🚀 How It Works
-
-1. **Call VaaniSeva** - User dials the toll-free number
-2. **Select Language** - Choose or auto-detect preferred language
-3. **Ask Question** - Speak naturally in your language
-4. **AI Responds** - Get accurate, contextual voice response
-5. **Follow-up** - Continue conversation or receive SMS summary
-
-**Average Call Duration:** 2-3 minutes  
-**Cost per Call:** ₹12.50 (scales down to ₹4 at high volume)
-
----
-
-## 🏗️ Architecture
-
-### System Components
-
-**User Interface Layer:**
-- Twilio Voice API (telephony)
-- IVR system with language selection
-- SMS gateway for summaries
-
-**Processing Layer:**
-- AWS Lambda (serverless compute)
-- Twilio Native Gather (speech-to-text)
-- Sarvam AI (text-to-speech, primary)
-- Amazon Polly (text-to-speech, fallback)
-
-**Intelligence Layer:**
-- Amazon Bedrock Nova Lite (primary LLM — conversation and reasoning)
-- Knowledge base integration
-- Context management
-- Multi-turn dialog handling
-
-**Data Layer:**
-- AWS S3 (storage)
-- DynamoDB (user data)
-- External APIs (government, healthcare, agriculture)
-
-**Infrastructure:**
-- AWS CloudFormation
-- Auto-scaling capabilities
-- Multi-region support
-- 99.9% uptime SLA
-
----
-
-## 🛠️ Technology Stack
-
-### Telephony & Voice
-- Twilio Voice API
-- Twilio SMS
-- Twilio Native Gather (STT)
-
-### Speech Processing
-- Twilio Native Gather (STT) with Hindi support
-- Sarvam AI (TTS) - primary, better Hindi quality
-- Amazon Polly (TTS) - multilingual fallback
-- Audio processing and normalization
-
-### AI & Intelligence
-- Amazon Bedrock (LLM — Nova Lite primary, configurable)
-- Sarvam AI (Hindi/Indian-language TTS)
-- AWS Lambda (serverless)
-- Custom knowledge retrieval (RAG)
-
-### AWS Infrastructure
-- Lambda (compute)
-- S3 (storage)
-- DynamoDB (database)
-- CloudWatch (monitoring)
-
-### Data & Knowledge
-- Government API integrations
-- Healthcare databases
-- Agricultural market data
-- Real-time data feeds
-
-### Cost Optimization
-- Caching strategies
-- Regional pricing
-- Usage-based scaling
-
----
-
-## 💰 Economics
-
-### Cost Breakdown
-- **Twilio Voice:** ₹4.50/min
-- **Sarvam AI TTS:** ₹1.50/min
-- **Bedrock LLM:** ₹3.00/call
-- **Polly TTS (fallback):** ₹1.00/min
-- **AWS Infrastructure:** ₹1.00/call
-
-**Current Cost per Call:** ₹12.50  
-**At Scale Cost per Call:** ₹4.00
-
-### Free Tier Strategy
-- First 10 calls/month free per user
-- Community access programs
-- Government subsidy partnerships
-
-### Revenue Model
-1. Government contracts and subsidies
-2. NGO partnerships for rural access
-3. Freemium model (free tier + premium features)
-
----
-
-## 📊 Impact & Roadmap
-
-### Social Impact Goals
-- **500M+ users** reached by 2028
-- **8+ languages** supported
-- **4 key domains** covered
-- **99% accessibility** target
-- **₹4 per call** cost at scale
-
-### Key Benefits
-- Universal accessibility
-- Digital inclusion
-- Knowledge democratization
-- Economic empowerment
-- Health & welfare improvement
-
-### Development Roadmap
-
-**Phase 1 (Months 1-3):** MVP Launch
-- Core voice interface
-- 3 languages (Hindi, Tamil, Telugu)
-- 2 domains (Government, Healthcare)
-- 1000 beta users
-
-**Phase 2 (Months 4-6):** Feature Expansion
-- 8 Indian languages
-- 4 domains (+ Agriculture, Civic)
-- Smart follow-ups
-- SMS integration
-
-**Phase 3 (Months 7-12):** Scale & Optimize
-- 1M+ users
-- Regional partnerships
-- Cost optimization
-- Advanced AI features
-
-**Phase 4 (Year 2+):** National Rollout
-- 100M+ users
-- All major Indian languages
-- Government integration
-- Pan-India coverage
-
----
-
-## 🎯 Why VaaniSeva?
-
-### Unique Value Proposition
-
-| Feature | VaaniSeva | Traditional Apps | IVR Systems |
-|---------|-----------|------------------|-------------|
-| **No smartphone needed** | ✅ | ❌ | ✅ |
-| **AI-powered intelligence** | ✅ | ✅ | ❌ |
-| **Natural conversation** | ✅ | ❌ | ❌ |
-| **Multi-language support** | ✅ (8+) | Limited | Limited |
-| **No internet required** | ✅ | ❌ | ✅ |
-| **Cost effective** | ✅ (₹4) | Free* | ₹15-50 |
-| **Accessibility** | 100% | 40% | 70% |
-
----
-
-## 🌍 Alignment with UN SDGs
-
-VaaniSeva directly contributes to:
-- **SDG 1:** No Poverty - Access to government schemes
-- **SDG 3:** Good Health - Healthcare information
-- **SDG 4:** Quality Education - Knowledge access
-- **SDG 10:** Reduced Inequalities - Digital inclusion
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-- AWS Account with Bedrock model access enabled
-- Twilio Account with Voice API access
-- Sarvam AI API key (for Hindi TTS)
-- AWS DynamoDB tables and S3 bucket provisioned
-
-### Installation
+## Local voice test
 
 ```bash
-# Clone the repository
-git clone https://github.com/makekush7-netizen/VaaniSeva_Hack4Humanity.git
-cd vaaniseva
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure environment variables
+cd backend
 cp .env.example .env
-# Edit .env with your API keys and configuration
-
-# Deploy to AWS
-aws cloudformation deploy --template-file infrastructure/template.yaml
-
-# Set up Twilio webhook
-# Point Twilio Voice URL to your Lambda function endpoint
+pip install -r requirements-dev.txt
+python -m uvicorn vaaniseva_rt.server:app --host 127.0.0.1 --port 7860
 ```
 
-### Configuration
+Open `http://127.0.0.1:7860/local`, allow the microphone, and connect. Provider
+and Twilio secrets belong only in `backend/.env`, which Git ignores.
 
-Edit `.env` file:
-```
-TWILIO_ACCOUNT_SID=your_account_sid
-TWILIO_AUTH_TOKEN=your_auth_token
-TWILIO_PHONE_NUMBER=your_phone_number
-SARVAM_API_KEY=your_sarvam_api_key
-BEDROCK_MODEL_ID=us.anthropic.claude-3-5-haiku-20241022-v1:0
-BEDROCK_EMBEDDING_MODEL_ID=amazon.titan-embed-text-v2:0
-DYNAMODB_CALLS_TABLE=vaaniseva-calls
-DYNAMODB_KNOWLEDGE_TABLE=vaaniseva-knowledge
-DYNAMODB_VECTORS_TABLE=vaaniseva-vectors
-S3_DOCUMENTS_BUCKET=vaaniseva-documents
-AWS_REGION=us-east-1
+Run automated checks with `pytest -q` from `backend`. Human listening remains the
+final acceptance gate for pronunciation, latency, interruptions, persona gender,
+and ambience; automated tests cannot certify those.
+
+## Website
+
+Import the repository into Vercel with **Root Directory** set to `website`. Add:
+
+```env
+VITE_VOICE_BASE_URL=https://voice.vaanisevaai.me
 ```
 
----
-
-## 📱 Demo
-
-**Call the VaaniSeva Demo Line:** +16293173435
-
-Try asking:
-- "Mujhe kisan yojana ke baare mein bataye" (Tell me about farmer schemes)
-- "What are the COVID vaccination centers near me?"
-- "Ration card kaise banaye?" (How to make a ration card?)
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Please see our [CONTRIBUTING.md](CONTRIBUTING.md) for details.
-
-### Areas for Contribution
-- Additional language support
-- Domain-specific knowledge bases
-- UI/UX improvements
-- Performance optimization
-- Documentation
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgments
-
-
-- **Sarvam AI** - Hindi text-to-speech
-- **Twilio** - Telephony infrastructure and speech recognition
-- **Amazon Polly** - Fallback TTS
-
----
-
-## 📞 Contact
-
-For inquiries, partnerships, or demo requests:
-
-- **Email:** [makewatch7@gmail.com]
-- **Demo Line:** 7415074741
-- **Website:** [vaaniseva.me]
-
----
-
-**Join us in bridging India's digital divide!**
-
-*"सभी के लिए डिजिटल सेवाएं - VaaniSeva"*  
-*(Digital Services for All - VaaniSeva)*
+No private key is used by the Vite build. Callback credentials stay in the backend.

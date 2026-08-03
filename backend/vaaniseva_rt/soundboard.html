@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VaaniSeva Sound Design Board</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    body { margin: 0; background: radial-gradient(circle at 20% 0%, #183f3a, #06100e 55%); color: #effbf7; }
+    main { width: min(1060px, calc(100vw - 40px)); margin: 36px auto; }
+    header, .panel { border: 1px solid #315d55; border-radius: 22px; background: #091b17e8; padding: 24px; }
+    h1 { margin: 6px 0 10px; font-size: clamp(34px, 6vw, 58px); line-height: 1; }
+    h2 { margin: 0 0 6px; } p, small { color: #9fbcb4; line-height: 1.5; }
+    .eyebrow { color: #67e1bb; font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .panel { margin-top: 18px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 12px; margin-top: 16px; }
+    .card { border: 1px solid #264d45; border-radius: 16px; background: #0e2822; padding: 16px; }
+    .card.selected { border-color: #67e1bb; box-shadow: 0 0 0 2px #67e1bb22; }
+    .row { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+    button { border: 0; border-radius: 12px; padding: 11px 14px; font: inherit; font-weight: 800; cursor: pointer; color: #05251b; background: #67e1bb; }
+    button.secondary { background: #21473e; color: #e5faf4; }
+    button.stop { background: #ff858a; color: #30080a; }
+    input[type=range] { width: 100%; accent-color: #67e1bb; }
+    input[type=radio] { accent-color: #67e1bb; }
+    a { color: #7ee6c5; }
+    .warning { color: #efcb77; font-size: 12px; }
+    #noneCard small { display: block; margin-top: 6px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    code { color: #b8f3df; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">Team NovaFrost · human approval gate</div>
+    <h1>Sound design board</h1>
+    <p>Preview and select cues here before they touch the live call. Handoff cues play between personas. Search textures are tested beneath a spoken acknowledgement and must never mask speech.</p>
+  </header>
+
+  <section class="panel">
+    <h2>1. Persona handoff</h2>
+    <p>Choose one tiny cue for Arya ↔ Hitesh ↔ Vidya transfers.</p>
+    <div id="handoff" class="grid"></div>
+    <div class="actions"><button id="handoffPreview">Preview selected handoff</button></div>
+  </section>
+
+  <section class="panel">
+    <h2>2. Verified-source search</h2>
+    <p>Choose one subtle texture, or choose none. The preview mixes it under the existing scheme acknowledgement at full speech volume.</p>
+    <div class="card" id="noneCard"><label><input type="radio" name="search" value="none" checked> <strong>No search texture</strong></label><small>Safest default.</small></div>
+    <div id="search" class="grid"></div>
+    <div class="actions">
+      <button id="searchPreview">Preview search + speech</button>
+      <button id="stop" class="stop">Stop all sounds</button>
+      <button id="copy" class="secondary">Copy selected configuration</button>
+    </div>
+    <small id="status">Selections stay in this browser until you copy them.</small>
+  </section>
+
+  <section class="panel">
+    <h2>Runtime safety contract</h2>
+    <p>No continuous loop. Search texture starts only for verified tool work expected to exceed 500 ms, is capped near 2.5 seconds, ducks beneath speech, and stops immediately on user speech or interruption. It is disabled for emergencies, sensitive health, consent, identity, and memory turns.</p>
+  </section>
+</main>
+<script>
+let context, manifest = [], active = [];
+const selections = { handoff: null, search: 'none', db: {} };
+const dbToGain = db => Math.pow(10, db / 20);
+const getContext = () => context ||= new AudioContext();
+
+async function loadBuffer(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(await response.text());
+  return getContext().decodeAudioData(await response.arrayBuffer());
+}
+
+function stopAll() {
+  active.forEach(source => { try { source.stop(); } catch (_) {} });
+  active = [];
+}
+
+async function play(url, db = 0, maxSeconds = null) {
+  const ctx = getContext(); await ctx.resume();
+  const source = ctx.createBufferSource();
+  const gain = ctx.createGain();
+  source.buffer = await loadBuffer(url); gain.gain.value = dbToGain(db);
+  source.connect(gain).connect(ctx.destination); source.start(); active.push(source);
+  if (maxSeconds) setTimeout(() => { try { source.stop(); } catch (_) {} }, maxSeconds * 1000);
+  source.onended = () => active = active.filter(item => item !== source);
+  return source;
+}
+
+function render(category) {
+  const root = document.querySelector(`#${category}`);
+  for (const item of manifest.filter(candidate => candidate.category === category)) {
+    selections.db[item.id] = item.default_db;
+    const card = document.createElement('article'); card.className = 'card'; card.dataset.id = item.id;
+    card.innerHTML = `<label><input type="radio" name="${category}" value="${item.id}"> <strong>${item.label}</strong></label>
+      <p>${item.license}</p><div class="row"><span>Volume</span><output>${item.default_db} dB</output></div>
+      <input type="range" min="-40" max="-8" step="1" value="${item.default_db}">
+      <div class="actions"><button class="secondary preview">Preview</button><a href="${item.source}" target="_blank" rel="noreferrer">source</a></div>
+      ${item.warning ? `<p class="warning">${item.warning}</p>` : ''}`;
+    const radio = card.querySelector('input[type=radio]');
+    radio.addEventListener('change', () => {
+      selections[category] = item.id;
+      document.querySelectorAll(`input[name=${category}]`).forEach(input => input.closest('.card')?.classList.toggle('selected', input.checked));
+    });
+    const slider = card.querySelector('input[type=range]'); const output = card.querySelector('output');
+    slider.addEventListener('input', () => { selections.db[item.id] = Number(slider.value); output.textContent = `${slider.value} dB`; });
+    card.querySelector('.preview').addEventListener('click', () => { stopAll(); play(item.audio_url, selections.db[item.id]); });
+    root.append(card);
+  }
+  const first = root.querySelector('input[type=radio]');
+  if (category === 'handoff' && first) { first.checked = true; first.dispatchEvent(new Event('change')); }
+}
+
+async function boot() {
+  const response = await fetch('/soundboard/manifest'); manifest = await response.json();
+  render('handoff'); render('search');
+  document.querySelector('input[name=search][value=none]').addEventListener('change', () => { selections.search = 'none'; document.querySelectorAll('input[name=search]').forEach(input => input.closest('.card')?.classList.toggle('selected', input.checked)); });
+}
+
+document.querySelector('#handoffPreview').onclick = () => { stopAll(); const item = manifest.find(x => x.id === selections.handoff); if (item) play(item.audio_url, selections.db[item.id]); };
+document.querySelector('#searchPreview').onclick = async () => {
+  stopAll();
+  if (selections.search !== 'none') { const item = manifest.find(x => x.id === selections.search); await play(item.audio_url, selections.db[item.id], 2.5); }
+  await play('/soundboard/ack/scheme', 0);
+};
+document.querySelector('#stop').onclick = stopAll;
+document.querySelector('#copy').onclick = async () => {
+  const result = { handoff: selections.handoff, handoff_db: selections.db[selections.handoff], search: selections.search, search_db: selections.search === 'none' ? null : selections.db[selections.search] };
+  await navigator.clipboard.writeText(JSON.stringify(result)); document.querySelector('#status').textContent = `Copied: ${JSON.stringify(result)}`;
+};
+boot().catch(error => document.querySelector('#status').textContent = `Dashboard failed: ${error.message}`);
+</script>
+</body>
+</html>

@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VaaniSeva Local Voice Test</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: radial-gradient(circle at 30% 10%, #173d3a, #07110f 58%); color: #effbf7; }
+    main { width: min(720px, calc(100vw - 40px)); padding: 32px; border: 1px solid #315d55; border-radius: 24px; background: rgba(8,25,22,.9); box-shadow: 0 24px 80px #0008; }
+    .eyebrow { color: #73e5c0; letter-spacing: .12em; text-transform: uppercase; font-size: 12px; font-weight: 750; }
+    h1 { margin: 8px 0 10px; font-size: clamp(32px,7vw,52px); line-height: 1; }
+    p, small { color: #9fbbb4; line-height: 1.55; }
+    .status { margin: 24px 0 16px; padding: 18px; border-radius: 16px; background: #0b201c; display: flex; gap: 12px; align-items: center; }
+    .dot { width: 12px; height: 12px; flex: 0 0 auto; border-radius: 50%; background: #71827d; box-shadow: 0 0 0 7px #71827d22; }
+    .dot.live { background: #52e0ad; box-shadow: 0 0 0 7px #52e0ad22; }
+    .dot.error { background: #ff6d75; box-shadow: 0 0 0 7px #ff6d7522; }
+    .meter { height: 12px; overflow: hidden; border-radius: 99px; margin: 14px 0 8px; background: #18352f; }
+    .meter > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg,#61e2b6,#ffe071,#ff777f); transition: width 45ms linear; }
+    .readout { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 18px; font-size: 13px; color: #82a39a; }
+    .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    button { border: 0; border-radius: 14px; padding: 15px 18px; font: inherit; font-weight: 800; cursor: pointer; background: #61e2b6; color: #05251b; }
+    button.secondary { background: #183b34; color: #dff8ef; }
+    button.stop { background: #ff7c83; color: #2f0709; }
+    button:disabled { opacity: .38; cursor: not-allowed; }
+    small { display: block; margin-top: 16px; }
+    @media (max-width: 580px) { .buttons { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Team NovaFrost · local capture bench</div>
+  <h1>Talk to VaaniSeva</h1>
+  <p>First prove the microphone locally. This stage makes no AI request. Once the meter reacts, play back the captured sample, then connect the agent.</p>
+  <div class="status"><span id="dot" class="dot"></span><span id="status">Step 1 — start the microphone check</span></div>
+  <div class="meter"><i id="level"></i></div>
+  <div class="readout"><span id="mic">No microphone selected</span><span id="db">−∞ dB</span></div>
+  <div class="buttons">
+    <button id="micButton">1. Start mic check</button>
+    <button id="playButton" class="secondary" disabled>2. Play last 3 seconds</button>
+    <button id="agentButton" disabled>3. Connect VaaniSeva</button>
+    <button id="stopButton" class="stop" disabled>Stop everything</button>
+  </div>
+  <small>The first two steps stay entirely inside this browser. The agent connects only when you press step 3. Twilio is not involved.</small>
+</main>
+<script>
+const CAPTURE_RATE = 16000;
+const PLAYBACK_RATE = 24000;
+const micButton = document.querySelector('#micButton');
+const playButton = document.querySelector('#playButton');
+const agentButton = document.querySelector('#agentButton');
+const stopButton = document.querySelector('#stopButton');
+const statusEl = document.querySelector('#status');
+const dot = document.querySelector('#dot');
+const level = document.querySelector('#level');
+const mic = document.querySelector('#mic');
+const db = document.querySelector('#db');
+
+let context, stream, source, processor, mute, socket;
+let recording = [], recordingFrames = 0, pcmCarry = [];
+let nextPlay = 0, playing = [], micReady = false, agentConnected = false;
+
+function setStatus(text, kind = '') { statusEl.textContent = text; dot.className = `dot ${kind}`; }
+
+function clearPlayback() {
+  for (const node of playing) { try { node.stop(); } catch (_) {} }
+  playing = [];
+  nextPlay = context ? context.currentTime : 0;
+}
+
+function rememberAudio(samples) {
+  recording.push(new Float32Array(samples));
+  recordingFrames += samples.length;
+  const limit = context.sampleRate * 3;
+  while (recordingFrames > limit && recording.length > 1) recordingFrames -= recording.shift().length;
+}
+
+function downsample(samples, inputRate) {
+  const ratio = inputRate / CAPTURE_RATE;
+  const count = Math.floor(samples.length / ratio);
+  const output = new Int16Array(count);
+  let squareSum = 0;
+  for (const value of samples) squareSum += value * value;
+  const rms = Math.sqrt(squareSum / Math.max(1, samples.length));
+  const gain = rms > .002 ? Math.min(6, Math.max(1, .07 / rms)) : 1;
+  for (let i = 0; i < count; i++) {
+    const start = Math.floor(i * ratio), end = Math.max(start + 1, Math.floor((i + 1) * ratio));
+    let sum = 0;
+    for (let j = start; j < end && j < samples.length; j++) sum += samples[j];
+    const value = Math.max(-1, Math.min(1, (sum / (end - start)) * gain));
+    output[i] = value < 0 ? value * 32768 : value * 32767;
+  }
+  return output;
+}
+
+function sendPCM(samples) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  pcmCarry.push(...downsample(samples, context.sampleRate));
+  while (pcmCarry.length >= 160) {
+    const packet = new Int16Array(pcmCarry.splice(0, 160));
+    socket.send(packet.buffer);
+  }
+}
+
+function updateMeter(samples) {
+  let peak = 0, sum = 0;
+  for (const value of samples) { const a = Math.abs(value); peak = Math.max(peak, a); sum += value * value; }
+  const rms = Math.sqrt(sum / Math.max(1, samples.length));
+  const decibels = rms > 0 ? 20 * Math.log10(rms) : -100;
+  level.style.width = `${Math.min(100, Math.max(0, peak * 320))}%`;
+  db.textContent = `${Math.round(decibels)} dB`;
+  if (!micReady && peak > .008) {
+    micReady = true;
+    playButton.disabled = false;
+    agentButton.disabled = false;
+    setStatus('Raw microphone confirmed — record a few words, then play them back', 'live');
+  }
+}
+
+async function startMic() {
+  micButton.disabled = true;
+  setStatus('Requesting microphone…');
+  try {
+    context = new AudioContext();
+    await context.resume();
+    stream = await navigator.mediaDevices.getUserMedia({audio: true, video: false});
+    const track = stream.getAudioTracks()[0];
+    mic.textContent = track.label || 'Default microphone';
+    source = context.createMediaStreamSource(stream);
+    processor = context.createScriptProcessor(2048, 1, 1);
+    mute = context.createGain();
+    mute.gain.value = 0;
+    source.connect(processor);
+    processor.connect(mute);
+    mute.connect(context.destination);
+    processor.onaudioprocess = event => {
+      const samples = event.inputBuffer.getChannelData(0);
+      updateMeter(samples);
+      rememberAudio(samples);
+      if (agentConnected) sendPCM(samples);
+    };
+    micButton.textContent = 'Mic check running';
+    stopButton.disabled = false;
+    setStatus('Speak now — waiting for a raw microphone signal', 'live');
+  } catch (error) {
+    micButton.disabled = false;
+    setStatus(`Microphone failed: ${error.message}`, 'error');
+  }
+}
+
+function playRecording() {
+  if (!context || !recordingFrames) return;
+  const total = recording.reduce((n, chunk) => n + chunk.length, 0);
+  const audio = context.createBuffer(1, total, context.sampleRate);
+  const channel = audio.getChannelData(0);
+  let offset = 0;
+  for (const chunk of recording) { channel.set(chunk, offset); offset += chunk.length; }
+  const node = context.createBufferSource();
+  node.buffer = audio;
+  node.connect(context.destination);
+  node.start();
+  playing.push(node);
+  setStatus('Playing the raw local microphone sample', 'live');
+  node.onended = () => { playing = playing.filter(n => n !== node); setStatus('If that sounded clear, connect VaaniSeva', 'live'); };
+}
+
+function playAgentPCM(buffer) {
+  if (!context) return;
+  const input = new Int16Array(buffer);
+  const audio = context.createBuffer(1, input.length, PLAYBACK_RATE);
+  const channel = audio.getChannelData(0);
+  for (let i = 0; i < input.length; i++) channel[i] = input[i] / 32768;
+  const node = context.createBufferSource();
+  node.buffer = audio;
+  node.connect(context.destination);
+  const start = Math.max(context.currentTime + .025, nextPlay);
+  node.start(start);
+  nextPlay = start + audio.duration;
+  playing.push(node);
+  node.onended = () => {
+    playing = playing.filter(n => n !== node);
+    if (!playing.length && agentConnected) setStatus('Listening — speak now', 'live');
+  };
+}
+
+function connectAgent() {
+  agentButton.disabled = true;
+  setStatus('Connecting the real agent…', 'live');
+  socket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/local/ws`);
+  socket.binaryType = 'arraybuffer';
+  socket.onopen = () => { agentConnected = true; setStatus('Connected — listen for the greeting', 'live'); };
+  socket.onmessage = ({data}) => {
+    if (typeof data === 'string') {
+      const event = JSON.parse(data);
+      if (event.type === 'clear') { clearPlayback(); setStatus('Interrupted — listening', 'live'); }
+    } else {
+      playAgentPCM(data);
+      setStatus('VaaniSeva is speaking — you can interrupt', 'live');
+    }
+  };
+  socket.onerror = () => setStatus('Agent connection failed', 'error');
+  socket.onclose = () => { agentConnected = false; if (context) setStatus('Agent disconnected; microphone check still works', 'error'); };
+}
+
+function stopAll() {
+  agentConnected = false;
+  clearPlayback();
+  if (socket && socket.readyState === WebSocket.OPEN) socket.close();
+  if (processor) processor.disconnect();
+  if (source) source.disconnect();
+  if (stream) stream.getTracks().forEach(track => track.stop());
+  if (context) context.close();
+  socket = context = stream = source = processor = mute = null;
+  recording = []; recordingFrames = 0; pcmCarry = []; micReady = false;
+  level.style.width = '0'; db.textContent = '−∞ dB'; mic.textContent = 'No microphone selected';
+  micButton.disabled = false; micButton.textContent = '1. Start mic check';
+  playButton.disabled = true; agentButton.disabled = true; stopButton.disabled = true;
+  setStatus('Stopped');
+}
+
+micButton.addEventListener('click', startMic);
+playButton.addEventListener('click', playRecording);
+agentButton.addEventListener('click', connectAgent);
+stopButton.addEventListener('click', stopAll);
+</script>
+</body>
+</html>

@@ -1,181 +1,32 @@
-import React, { useState, useEffect } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { Phone, Menu, X, User, LogIn } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import React, { useEffect, useState } from 'react'
+import { Menu, Phone, X } from 'lucide-react'
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const location = useLocation()
-  const { isLoggedIn, user } = useAuth()
-
+  const [open, setOpen] = useState(false)
+  const home = window.location.pathname === '/'
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20)
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
+    const onScroll = () => setScrolled(window.scrollY > 20)
+    window.addEventListener('scroll', onScroll)
+    return () => window.removeEventListener('scroll', onScroll)
   }, [])
-
-  // Close mobile menu on route change
-  useEffect(() => { setMobileOpen(false) }, [location])
-
-  const isHome = location.pathname === '/'
-
+  const foreground = scrolled || !home ? 'text-content-primary' : 'text-white'
   return (
-    <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled
-          ? 'bg-white/90 backdrop-blur-md shadow-sm border-b border-gray-100'
-          : isHome
-            ? 'bg-transparent'
-            : 'bg-white border-b border-gray-100'
-      }`}
-    >
-      <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-20">
-        <div className="flex items-center justify-between h-16">
-
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 bg-gradient-accent rounded-lg flex items-center justify-center shadow-sm">
-              <Phone size={18} className="text-white" />
-            </div>
-            <div className="flex flex-col leading-none">
-              <span className={`font-bold text-lg tracking-tight ${
-                scrolled || !isHome ? 'text-content-primary' : 'text-white'
-              }`}>
-                VaaniSeva
-              </span>
-              <span className={`font-hindi text-[10px] font-medium tracking-wide ${
-                scrolled || !isHome ? 'text-content-tertiary' : 'text-white/50'
-              }`}>
-                वाणीसेवा
-              </span>
-            </div>
-          </Link>
-
-          {/* Desktop Links */}
-          <div className="hidden md:flex items-center gap-8">
-            <a
-              href={isHome ? '#how-it-works' : '/#how-it-works'}
-              className={`text-sm font-medium transition-colors ${
-                scrolled || !isHome
-                  ? 'text-content-secondary hover:text-content-primary'
-                  : 'text-white/80 hover:text-white'
-              }`}
-            >
-              How It Works
-            </a>
-            <a
-              href={isHome ? '#schemes' : '/#schemes'}
-              className={`text-sm font-medium transition-colors ${
-                scrolled || !isHome
-                  ? 'text-content-secondary hover:text-content-primary'
-                  : 'text-white/80 hover:text-white'
-              }`}
-            >
-              Schemes
-            </a>
-            <Link
-              to="/try"
-              className={`text-sm font-medium transition-colors ${
-                scrolled || !isHome
-                  ? 'text-content-secondary hover:text-content-primary'
-                  : 'text-white/80 hover:text-white'
-              }`}
-            >
-              Try VaaniSeva
-            </Link>
-
-            <Link
-              to="/pricing"
-              className={`text-sm font-medium transition-colors ${
-                scrolled || !isHome
-                  ? 'text-content-secondary hover:text-content-primary'
-                  : 'text-white/80 hover:text-white'
-              }`}
-            >
-              Pricing
-            </Link>
-
-            {isLoggedIn ? (
-              <Link
-                to="/profile"
-                className={`flex items-center gap-1.5 text-sm font-medium transition-colors ${
-                  scrolled || !isHome
-                    ? 'text-content-secondary hover:text-content-primary'
-                    : 'text-white/80 hover:text-white'
-                }`}
-              >
-                <User size={14} />
-                {user?.name || 'Profile'}
-              </Link>
-            ) : (
-              <Link
-                to="/login"
-                className={`flex items-center gap-1.5 text-sm font-medium transition-colors ${
-                  scrolled || !isHome
-                    ? 'text-content-secondary hover:text-content-primary'
-                    : 'text-white/80 hover:text-white'
-                }`}
-              >
-                <LogIn size={14} />
-                Login
-              </Link>
-            )}
-
-            <a
-              href="tel:+12602048966"
-              className="btn-primary text-sm !px-4 !py-2"
-            >
-              <Phone size={14} />
-              Call Now
-            </a>
-          </div>
-
-          {/* Mobile Hamburger */}
-          <button
-            className="md:hidden p-2"
-            onClick={() => setMobileOpen(!mobileOpen)}
-          >
-            {mobileOpen ? (
-              <X size={22} className={scrolled || !isHome ? 'text-content-primary' : 'text-white'} />
-            ) : (
-              <Menu size={22} className={scrolled || !isHome ? 'text-content-primary' : 'text-white'} />
-            )}
-          </button>
+    <nav className={`fixed inset-x-0 top-0 z-50 ${scrolled || !home ? 'border-b border-gray-100 bg-white/95 shadow-sm backdrop-blur' : 'bg-transparent'}`}>
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6 md:px-12">
+        <a href="/" className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-accent"><Phone size={18} className="text-white" /></span>
+          <span className={`font-bold text-lg ${foreground}`}>VaaniSeva</span>
+        </a>
+        <div className="hidden items-center gap-8 md:flex">
+          <a href="/#how-it-works" className={foreground}>How it works</a>
+          <a href="/#schemes" className={foreground}>Schemes</a>
+          <a href="/pricing" className={foreground}>Pricing</a>
+          <a href="/try" className="btn-primary text-sm !px-4 !py-2"><Phone size={14} /> Call now</a>
         </div>
+        <button aria-label="Open navigation" onClick={() => setOpen(!open)} className={`p-2 md:hidden ${foreground}`}>{open ? <X /> : <Menu />}</button>
       </div>
-
-      {/* Mobile Menu */}
-      {mobileOpen && (
-        <div className="md:hidden bg-white border-t border-gray-100 shadow-lg animate-fade-in">
-          <div className="px-6 py-4 space-y-3">
-            <a href="/#how-it-works" className="block text-sm font-medium text-content-secondary hover:text-accent-500 py-2">
-              How It Works
-            </a>
-            <a href="/#schemes" className="block text-sm font-medium text-content-secondary hover:text-accent-500 py-2">
-              Schemes
-            </a>
-            <Link to="/try" className="block text-sm font-medium text-content-secondary hover:text-accent-500 py-2" onClick={() => setMobileOpen(false)}>
-              Try VaaniSeva
-            </Link>
-            <Link to="/pricing" className="block text-sm font-medium text-content-secondary hover:text-accent-500 py-2" onClick={() => setMobileOpen(false)}>
-              Pricing
-            </Link>
-            {isLoggedIn ? (
-              <Link to="/profile" className="flex items-center gap-2 text-sm font-medium text-content-secondary hover:text-accent-500 py-2" onClick={() => setMobileOpen(false)}>
-                <User size={14} /> {user?.name || 'Profile'}
-              </Link>
-            ) : (
-              <Link to="/login" className="flex items-center gap-2 text-sm font-medium text-content-secondary hover:text-accent-500 py-2" onClick={() => setMobileOpen(false)}>
-                <LogIn size={14} /> Login
-              </Link>
-            )}
-            <a href="tel:+12602048966" className="btn-primary text-sm w-full mt-2">
-              <Phone size={14} /> Call Now
-            </a>
-          </div>
-        </div>
-      )}
+      {open && <div className="space-y-3 border-t bg-white px-6 py-4 md:hidden"><a href="/#how-it-works" className="block">How it works</a><a href="/#schemes" className="block">Schemes</a><a href="/pricing" className="block">Pricing</a><a href="/try" className="btn-primary w-full"><Phone size={14} /> Call now</a></div>}
     </nav>
   )
 }
