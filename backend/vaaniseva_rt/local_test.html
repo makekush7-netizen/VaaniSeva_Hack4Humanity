@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>VaaniSeva Local Voice Test</title>
+  <script>if (new URLSearchParams(location.search).has('embed')) document.documentElement.classList.add('embed')</script>
   <style>
     :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
     body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: radial-gradient(circle at 30% 10%, #173d3a, #07110f 58%); color: #effbf7; }
@@ -24,6 +25,17 @@
     button.stop { background: #ff7c83; color: #2f0709; }
     button:disabled { opacity: .38; cursor: not-allowed; }
     small { display: block; margin-top: 16px; }
+    .embed body { min-height: 100vh; background: #07110f; }
+    .embed main { box-sizing: border-box; width: 100%; min-height: 100vh; padding: 22px 18px; border: 0; border-radius: 0; box-shadow: none; }
+    .embed .eyebrow { font-size: 9px; }
+    .embed h1 { margin-top: 6px; font-size: 30px; }
+    .embed p { margin: 8px 0; font-size: 12px; }
+    .embed .status { margin: 14px 0 10px; padding: 11px; font-size: 12px; }
+    .embed .meter { height: 8px; margin: 10px 0 6px; }
+    .embed .readout { margin-bottom: 12px; font-size: 10px; }
+    .embed .buttons { grid-template-columns: 1fr; gap: 7px; }
+    .embed button { padding: 10px 12px; border-radius: 11px; font-size: 12px; }
+    .embed small { margin-top: 11px; font-size: 10px; }
     @media (max-width: 580px) { .buttons { grid-template-columns: 1fr; } }
   </style>
 </head>
