@@ -83,6 +83,13 @@ const level = document.querySelector('#level');
 const mic = document.querySelector('#mic');
 const db = document.querySelector('#db');
 
+if (document.documentElement.classList.contains('embed-product')) {
+  document.querySelector('.eyebrow').textContent = 'VaaniSeva · live voice';
+  document.querySelector('h1').textContent = 'Ready when you are';
+  document.querySelector('main > p').textContent = 'Tap once, allow microphone access, and speak naturally. You can interrupt the assistant at any time.';
+  statusEl.textContent = 'Your microphone starts only after you press the button';
+}
+
 let context, stream, source, processor, mute, socket;
 let recording = [], recordingFrames = 0, pcmCarry = [];
 let nextPlay = 0, playing = [], micReady = false, agentConnected = false;
