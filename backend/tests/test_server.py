@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 
 from twilio.request_validator import RequestValidator
 
-from vaaniseva_rt.server import _valid_twilio_signature, app
+from vaaniseva_rt.server import _stream_twiml, _valid_twilio_signature, app
 
 
 def test_health_reports_only_variable_names():
@@ -29,6 +29,17 @@ def test_twiml_uses_bidirectional_connect_stream(monkeypatch):
     assert "<Stream" in xml
     assert "ws://testserver/ws" in xml
     assert 'name="from_number"' in xml
+
+
+def test_inline_callback_twiml_points_directly_to_production_stream():
+    xml = _stream_twiml(
+        "https://voice.example.org",
+        "+919876543210",
+        "+16293173435",
+    )
+    assert 'url="wss://voice.example.org/ws"' in xml
+    assert 'name="from_number" value="+919876543210"' in xml
+    assert 'name="to_number" value="+16293173435"' in xml
 
 
 def test_twilio_websocket_signature_accepts_documented_trailing_slash_variant():

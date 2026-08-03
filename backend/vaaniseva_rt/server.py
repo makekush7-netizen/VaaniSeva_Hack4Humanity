@@ -51,6 +51,17 @@ def _websocket_url(base_url: str) -> str:
     return parsed._replace(scheme=scheme, path="/ws", params="", query="", fragment="").geturl()
 
 
+def _stream_twiml(base_url: str, from_number: str, to_number: str) -> str:
+    """Build one authoritative media-stream document for inbound and callback calls."""
+    response = VoiceResponse()
+    connect = Connect()
+    stream = connect.stream(url=_websocket_url(base_url))
+    stream.parameter(name="from_number", value=from_number)
+    stream.parameter(name="to_number", value=to_number)
+    response.append(connect)
+    return str(response)
+
+
 def _signature_candidate_urls(url: str) -> list[str]:
     parsed = urlparse(url)
     variants = {url, url.rstrip("/")}
@@ -129,8 +140,13 @@ async def request_callback(payload: CallbackRequest, request: Request) -> JSONRe
             client.calls.create,
             to=number,
             from_=settings.twilio_phone_number,
-            url=f"{settings.public_base_url.rstrip('/')}/twiml",
-            method="POST",
+            # Inline TwiML removes a callback-only failure point between the
+            # answered PSTN leg and our already accepted WebSocket pipeline.
+            twiml=_stream_twiml(
+                settings.public_base_url.rstrip("/"),
+                number,
+                settings.twilio_phone_number,
+            ),
         )
     except Exception as exc:
         logger.warning("callback_failed type={}", type(exc).__name__)
@@ -247,13 +263,10 @@ async def twiml(
         if not _valid_twilio_signature(signed_urls, form, x_twilio_signature, settings.twilio_auth_token):
             raise HTTPException(status_code=403, detail="Invalid Twilio signature")
 
-    response = VoiceResponse()
-    connect = Connect()
-    stream = connect.stream(url=_websocket_url(_public_url(request, settings)))
-    stream.parameter(name="from_number", value=From)
-    stream.parameter(name="to_number", value=To)
-    response.append(connect)
-    return Response(content=str(response), media_type="application/xml")
+    return Response(
+        content=_stream_twiml(_public_url(request, settings), From, To),
+        media_type="application/xml",
+    )
 
 
 @app.websocket("/ws")

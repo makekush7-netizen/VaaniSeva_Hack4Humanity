@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>VaaniSeva Local Voice Test</title>
-  <script>if (new URLSearchParams(location.search).has('embed')) document.documentElement.classList.add('embed')</script>
+  <script>{ const mode = new URLSearchParams(location.search).get('embed'); if (mode) document.documentElement.classList.add('embed', `embed-${mode}`) }</script>
   <style>
     :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
     body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: radial-gradient(circle at 30% 10%, #173d3a, #07110f 58%); color: #effbf7; }
@@ -36,6 +36,19 @@
     .embed .buttons { grid-template-columns: 1fr; gap: 7px; }
     .embed button { padding: 10px 12px; border-radius: 11px; font-size: 12px; }
     .embed small { margin-top: 11px; font-size: 10px; }
+    #productButton { display: none; }
+    .embed-product body { background: #07110f; }
+    .embed-product main { display: flex; min-height: 100vh; flex-direction: column; justify-content: center; padding: 34px 28px; }
+    .embed-product .eyebrow { font-size: 10px; }
+    .embed-product h1 { font-size: clamp(30px, 8vw, 44px); }
+    .embed-product main > p { max-width: 510px; font-size: 14px; }
+    .embed-product .meter, .embed-product .readout, .embed-product small,
+    .embed-product #micButton, .embed-product #playButton, .embed-product #agentButton { display: none; }
+    .embed-product .status { margin: 22px 0 14px; padding: 15px; font-size: 14px; }
+    .embed-product .buttons { display: block; }
+    .embed-product #productButton { display: block; width: 100%; padding: 15px; font-size: 15px; }
+    .embed-product #stopButton { width: 100%; margin-top: 10px; }
+    .embed-product #stopButton:disabled { display: none; }
     @media (max-width: 580px) { .buttons { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -51,6 +64,7 @@
     <button id="micButton">1. Start mic check</button>
     <button id="playButton" class="secondary" disabled>2. Play last 3 seconds</button>
     <button id="agentButton" disabled>3. Connect VaaniSeva</button>
+    <button id="productButton">Start voice conversation</button>
     <button id="stopButton" class="stop" disabled>Stop everything</button>
   </div>
   <small>The first two steps stay entirely inside this browser. The agent connects only when you press step 3. Twilio is not involved.</small>
@@ -61,6 +75,7 @@ const PLAYBACK_RATE = 24000;
 const micButton = document.querySelector('#micButton');
 const playButton = document.querySelector('#playButton');
 const agentButton = document.querySelector('#agentButton');
+const productButton = document.querySelector('#productButton');
 const stopButton = document.querySelector('#stopButton');
 const statusEl = document.querySelector('#status');
 const dot = document.querySelector('#dot');
@@ -154,10 +169,25 @@ async function startMic() {
     micButton.textContent = 'Mic check running';
     stopButton.disabled = false;
     setStatus('Speak now — waiting for a raw microphone signal', 'live');
+    return true;
   } catch (error) {
     micButton.disabled = false;
     setStatus(`Microphone failed: ${error.message}`, 'error');
+    return false;
   }
+}
+
+async function startProductCall() {
+  productButton.disabled = true;
+  productButton.textContent = 'Connecting…';
+  const ready = await startMic();
+  if (!ready) {
+    productButton.disabled = false;
+    productButton.textContent = 'Try microphone again';
+    return;
+  }
+  connectAgent();
+  productButton.textContent = 'Conversation connected';
 }
 
 function playRecording() {
@@ -226,6 +256,7 @@ function stopAll() {
   recording = []; recordingFrames = 0; pcmCarry = []; micReady = false;
   level.style.width = '0'; db.textContent = '−∞ dB'; mic.textContent = 'No microphone selected';
   micButton.disabled = false; micButton.textContent = '1. Start mic check';
+  productButton.disabled = false; productButton.textContent = 'Start voice conversation';
   playButton.disabled = true; agentButton.disabled = true; stopButton.disabled = true;
   setStatus('Stopped');
 }
@@ -233,6 +264,7 @@ function stopAll() {
 micButton.addEventListener('click', startMic);
 playButton.addEventListener('click', playRecording);
 agentButton.addEventListener('click', connectAgent);
+productButton.addEventListener('click', startProductCall);
 stopButton.addEventListener('click', stopAll);
 </script>
 </body>
