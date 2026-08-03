@@ -4,13 +4,13 @@ import { Environment, OrbitControls, useGLTF } from '@react-three/drei'
 
 function VaaniModel() {
   const { scene } = useGLTF('/models/vaani.glb')
-  return <primitive object={scene} position={[0, -1.56, 0]} />
+  return <primitive object={scene} />
 }
 
 export default function AvatarShowcase() {
   return (
     <div className="relative h-72 overflow-hidden rounded-3xl bg-gradient-to-b from-amber-50 to-orange-100">
-      <Canvas camera={{ position: [0, 1.55, 1.2], fov: 28 }} dpr={[1, 1.5]}>
+      <Canvas camera={{ position: [0, 1.55, 1.2], fov: 28 }} dpr={[1, 1.5]} onCreated={({ camera }) => camera.lookAt(0, 1.52, 0)}>
         <ambientLight intensity={1.8} />
         <directionalLight position={[2, 4, 3]} intensity={2.5} />
         <Suspense fallback={null}>
