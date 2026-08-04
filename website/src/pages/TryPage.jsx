@@ -27,7 +27,7 @@ export function CallMeBack() {
       const body = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(body.detail || 'The call could not be placed.')
       setStatus('success')
-      setMessage('VaaniSeva is calling you now. Please pick up.')
+      setMessage('VaaniSeva is calling. Answer, press 1 once, then wait for Arya to greet you.')
     } catch (error) {
       setStatus('error')
       setMessage(error.message)
@@ -38,7 +38,7 @@ export function CallMeBack() {
     <div><label className="mb-2 block text-sm font-semibold text-content-primary">Phone number <span className="font-normal text-content-tertiary">· फ़ोन नंबर</span></label><div className="flex gap-2"><span className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 font-mono text-sm">IN +91</span><input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="98765 43210" inputMode="tel" className="min-w-0 flex-1 rounded-xl border border-gray-200 px-4 py-3 font-mono outline-none focus:border-accent-500" /></div></div>
     {message && <p className={`rounded-xl px-4 py-3 text-sm ${status === 'error' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>{message}</p>}
     <button disabled={status === 'sending'} className="btn-primary w-full justify-center disabled:opacity-60">{status === 'sending' ? <Loader2 size={18} className="animate-spin" /> : <PhoneCall size={18} />}{status === 'sending' ? 'Calling…' : 'Call me now'}</button>
-    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-900"><strong>Trial callback notice.</strong> Calls currently originate from our US Twilio number (+1 629 317 3435) while an Indian toll-free number is provisioned. VaaniSeva pays its side; your carrier may apply international-call rates. Browser Call has no phone charge.</div>
+    <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950"><strong className="block text-base">When it rings: answer → press 1 → wait for Arya.</strong><span className="mt-1 block">The keypad press is required only by Twilio's free-trial gate, before VaaniSeva's stream can start. Calls currently originate from +1 629 317 3435; your carrier may apply international-call rates. Browser Call has no phone charge.</span></div>
     <p className="text-xs leading-relaxed text-content-tertiary">Rate-limited demo. Your number is used only to place this call and is converted to a one-way identifier for optional conversation continuity.</p>
   </form>
 }
