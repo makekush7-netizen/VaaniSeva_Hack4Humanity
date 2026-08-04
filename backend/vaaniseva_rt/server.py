@@ -129,7 +129,7 @@ async def request_callback(payload: CallbackRequest, request: Request) -> JSONRe
     client_ip = request.client.host if request.client else "unknown"
     now = time.monotonic()
     recent = [stamp for stamp in _callback_attempts.get(client_ip, []) if now - stamp < 600]
-    if len(recent) >= 2:
+    if len(recent) >= 10:
         raise HTTPException(status_code=429, detail="Please wait before requesting another demo call")
     recent.append(now)
     _callback_attempts[client_ip] = recent
