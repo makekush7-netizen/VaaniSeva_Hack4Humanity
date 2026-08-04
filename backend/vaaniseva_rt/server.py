@@ -140,13 +140,10 @@ async def request_callback(payload: CallbackRequest, request: Request) -> JSONRe
             client.calls.create,
             to=number,
             from_=settings.twilio_phone_number,
-            # Inline TwiML removes a callback-only failure point between the
-            # answered PSTN leg and our already accepted WebSocket pipeline.
-            twiml=_stream_twiml(
-                settings.public_base_url.rstrip("/"),
-                number,
-                settings.twilio_phone_number,
-            ),
+            # Keep the webhook flow used by the accepted 148-second callback.
+            # Twilio's trial announcement and keypad gate run before this URL.
+            url=f"{settings.public_base_url.rstrip('/')}/twiml",
+            method="POST",
         )
     except Exception as exc:
         logger.warning("callback_failed type={}", type(exc).__name__)
