@@ -38,43 +38,43 @@ Over 500 million Indians are excluded from digital services — not because the 
 
 ```mermaid
 flowchart TD
-    A[📞 Phone Caller\nAny basic phone] -->|Twilio Programmable Voice| B[/twiml\nConnect + Stream]
-    C[🌐 Browser Mic\nNo app needed] -->|Raw PCM WebSocket| D[/local/ws]
+    A["Phone Caller — any basic phone"] -->|Twilio Programmable Voice| B["/twiml — Connect + Stream"]
+    C["Browser Mic — no app needed"] -->|Raw PCM WebSocket| D["/local/ws"]
 
     B --> E
     D --> E
 
-    subgraph E[" 🔁 Pipecat Streaming Pipeline "]
+    subgraph E["Pipecat Streaming Pipeline"]
         direction TB
-        E1[Silero VAD\nSpeech detection]
-        E2[Sarvam Bulbul v2 STT\nREST · 16 kHz]
-        E3[Intent + Persona Router\nDeterministic at app boundary]
-        E4[Amazon Bedrock Nova\nReasoning + tool selection]
-        E5[Safety / Evidence Layer\nNo invented facts · no diagnosis]
-        E6[TTS\nCartesia Sonic 3 · Sarvam Bulbul v2]
+        E1["Silero VAD — speech detection"]
+        E2["Sarvam Bulbul v2 STT — REST, 16 kHz"]
+        E3["Intent + Persona Router — deterministic at app boundary"]
+        E4["Amazon Bedrock Nova — reasoning + tool selection"]
+        E5["Safety / Evidence Layer — no invented facts, no diagnosis"]
+        E6["TTS — Cartesia Sonic 3 or Sarvam Bulbul v2"]
         E1 --> E2 --> E3 --> E4 --> E5 --> E6
     end
 
-    E4 -->|Tool calls| F
+    E4 -->|Tool calls only| F
 
-    subgraph F[" 🔧 In-process MCP Server "]
+    subgraph F["In-process MCP Server"]
         direction LR
-        F1[search_government_schemes]
-        F2[get_mandi_price]
-        F3[get_health_helpline]
-        F4[check_scheme_eligibility]
-        F5[switch_persona]
-        F6[end_call]
+        F1["search_government_schemes"]
+        F2["get_mandi_price"]
+        F3["get_health_helpline"]
+        F4["check_scheme_eligibility"]
+        F5["switch_persona"]
+        F6["end_call"]
     end
 
-    F1 & F4 --> G[(DynamoDB RAG\nTitan Embeddings v2\nvaaniseva-vectors)]
-    F2 --> H[data.gov.in\nAgmarknet live API]
-    F3 --> I[Verified Helpline\nRegistry]
+    F1 & F4 --> G[("DynamoDB RAG\nTitan Embeddings v2")]
+    F2 --> H["data.gov.in Agmarknet — live"]
+    F3 --> I["Verified Helpline Registry"]
 
-    E6 -->|μ-law 8kHz audio| A
-    E6 -->|PCM audio| C
+    E6 -->|"mu-law 8 kHz audio"| A
+    E6 -->|"PCM audio"| C
 
-    E1 -.->|Barge-in detected| J[🛑 Cancel in-flight\nTTS + Bedrock generation]
+    E1 -.->|"Barge-in detected"| J["Cancel in-flight TTS + Bedrock"]
 ```
 
 **Pattern:** `End User → Agent (Bedrock Nova) → MCP Server → Grounded Data`
