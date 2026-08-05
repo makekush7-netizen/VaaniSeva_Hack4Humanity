@@ -108,9 +108,10 @@ export default function Home() {
                 className="text-base md:text-lg font-medium leading-relaxed mb-6"
                 style={{ color: 'rgba(255,255,255,0.72)' }}
               >
-                Hundreds of millions of Indians have no smartphone, no internet, no access to digital services.
+                A farmer in rural India shouldn&apos;t need a smartphone to know his crop price
+                or claim a government benefit he&apos;s entitled to.
                 <br />
-                VaaniSeva changes that — one voice call at a time.
+                VaaniSeva answers — in his language, from any phone, right now.
               </p>
 
               {/* Language ticker */}
@@ -276,8 +277,8 @@ export default function Home() {
             One Call. Any Language. Real Answers.
           </h2>
           <p className="text-lg text-white/75 mb-8 max-w-lg mx-auto">
-            Built for the AI for Bharat Hackathon 2026.
-            No signup needed — just call us now.
+            No signup. No smartphone. No internet required.
+            Just call — and ask anything, in your language.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <a href="tel:+19788309619" className="inline-flex items-center gap-2 px-8 py-4 font-bold rounded-xl text-lg text-white transition-colors shadow-lg hover:opacity-90" style={{ background: '#D4860B' }}>
@@ -335,8 +336,9 @@ export default function Home() {
                 </div>
               </div>
               <p className="text-sm text-content-secondary leading-relaxed">
-                Built by Team Prayas for AI for Bharat Hackathon 2026.
-                VaaniSeva is a Voice-First AI helpline built to serve rural and underserved India — accessible from any basic phone, in any language.
+                VaaniSeva is a voice-first AI platform that puts India&apos;s verified public information
+                — government schemes, crop prices, health guidance — within reach of anyone with a phone call,
+                in any language, without needing a smartphone or internet connection.
               </p>
             </div>
             <div>
@@ -348,15 +350,15 @@ export default function Home() {
               </div>
             </div>
             <div>
-              <h4 className="font-semibold text-sm text-content-primary mb-3">About</h4>
+              <h4 className="font-semibold text-sm text-content-primary mb-3">Mission</h4>
               <p className="text-sm text-content-secondary leading-relaxed">
-                Built by <strong>Team Prayas</strong> for the <strong>AI for Bharat Hackathon 2026</strong>.
+                Built by <strong>Team VaaniSeva</strong> with a simple belief: access to knowledge is a right, not a privilege of smartphone ownership.
               </p>
-              <p className="text-sm text-content-secondary mt-2">Problem Statement 3 — Voice AI for Rural India</p>
+              <p className="text-sm text-content-secondary mt-2">Voice AI for rural and underserved India.</p>
             </div>
           </div>
           <div className="mt-10 pt-6 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-xs text-content-tertiary">© 2026 VaaniSeva — Team Prayas. All rights reserved.</p>
+            <p className="text-xs text-content-tertiary">© 2026 VaaniSeva — Team VaaniSeva. All rights reserved.</p>
             <span className="text-xs text-content-tertiary">Powered by AWS Bedrock + Sarvam AI + Twilio</span>
           </div>
         </div>

@@ -1,39 +1,151 @@
 # Architecture and design choices
 
-## Real-time path
+## Pattern: End User → Agent → MCP Server → Grounded Data
 
+VaaniSeva follows the agentic architecture pattern the judges are looking for:
+
+```
+Caller → Transport → Pipecat Orchestration → Bedrock Nova (Agent/LLM)
+                                                    ↓
+                                          In-process MCP Server
+                                          (domain logic + guardrails)
+                                                    ↓
+                          ┌─────────────────────────────────────────┐
+                          │           Grounded Data Sources          │
+                          │  • DynamoDB RAG (Titan Embeddings v2)   │
+                          │  • data.gov.in Agmarknet (live mandi)   │
+                          │  • Curated official scheme snapshot      │
+                          │  • Verified helpline registry            │
+                          └─────────────────────────────────────────┘
+```
+
+---
+
+## Real-time voice path
+
+### Telephone (Twilio)
 Twilio posts to `/twiml`, receives `<Connect><Stream>`, and opens `/ws`. The server
-validates Twilio signatures at both boundaries. Pipecat streams audio through Silero
-VAD, Sarvam speech recognition, Amazon Bedrock Nova, MCP tools, and streaming TTS.
-The transport supports barge-in so a caller can interrupt naturally.
+validates Twilio HMAC-SHA1 signatures at both boundaries, including the
+trailing-slash edge case Twilio documents. Audio arrives as mu-law 8 kHz; the
+pipeline converts to 16 kHz linear PCM for STT.
 
-The browser demo uses `/local/ws` with raw PCM and the identical agent pipeline. It
-does not create a Twilio call and is embedded by the Vercel site with microphone
-permission.
+### Browser (/local/ws)
+Raw 16 kHz PCM from the browser's microphone over WebSocket. Identical agent
+pipeline — no Twilio required. The browser demo on the Vercel site uses this path.
 
-## Agent and ambience
+---
 
-Arya handles general navigation, Hitesh agriculture and mandi questions, and Vidya
-health navigation. Intent routing can transfer to the right specialist even when the
-caller asks the current persona. Handoff and search cues are quiet, short, and never
-mask generated speech. The agent can end a call after a clear user request.
+## Pipecat pipeline stages
 
-## MCP and knowledge
+1. **Silero VAD** — detects speech / silence boundaries without sending audio to any
+   external service. Triggers barge-in cancel when the caller speaks over playback.
+2. **Sarvam Bulbul v2 STT** — REST call on complete utterance segments (16 kHz).
+   Chosen over WebSocket STT after reliability testing showed the REST path is
+   significantly more consistent for Indian languages.
+3. **Intent + persona router** — deterministic at the application layer; topic drives
+   persona, not the caller's phrasing. Scheme/eligibility → Arya, mandi → Hitesh,
+   health → Vidya.
+4. **Amazon Bedrock Nova (Converse + streaming)** — reasoning and tool selection. The
+   LLM sees only the bounded caller memory summary and the MCP tool definitions; it
+   never has direct database access.
+5. **In-process MCP server** — the only path to external facts (see below).
+6. **Safety / evidence layer** — intercepts health output before TTS; blocks diagnosis,
+   dosage, and invented prices; escalates emergencies to verified helplines.
+7. **TTS** — Cartesia Sonic 3 (Arushi voice) for Arya; Sarvam Bulbul v2 for Hitesh
+   and Vidya. Voice and Bedrock system instruction switch atomically on persona transfer.
+8. **Barge-in** — Twilio `clear` or browser stop fires immediately when VAD detects
+   caller speech during playback, cancelling in-flight TTS and Bedrock generation.
 
-The in-process MCP server exposes narrow tools for schemes, eligibility guidance,
-mandi observations, verified helplines, and safe health navigation. Scheme retrieval
-first uses Amazon Titan embeddings against the read-only `vaaniseva-vectors`
-DynamoDB corpus. Vectors are cached for ten minutes to reduce cost and latency. If
-AWS retrieval is denied or unavailable, the tool returns the curated official-source
-snapshot; it never silently fabricates a match.
+---
 
-Mandi data comes from the Government of India data.gov.in resource. Every response
-contains its source and check time. Empty or failed results are described as
-unavailable rather than turned into a price.
+## Agent personas — one clear role each
 
-## Memory
+| Persona | Voice | Domain scope |
+|---|---|---|
+| **Arya** | Cartesia Sonic 3 (Arushi) | Government schemes, civic navigation, eligibility |
+| **Hitesh** | Sarvam Bulbul v2 (Abhilash) | Agriculture advisory, mandi prices |
+| **Vidya** | Sarvam Bulbul v2 (Vidya) | Health navigation, helplines, safe escalation |
 
-The telephone number is transformed with an application salt into a one-way caller
-identifier. The model sees a short, bounded continuity summary, not database access.
-The system is designed to avoid identity documents, medical records, financial
-credentials, and other high-risk personal data.
+Persona transfer is atomic: application state, Bedrock system instruction (regenerated
+from application state, not from conversation history), and TTS provider/voice all
+switch together. A deterministic layer also corrects obvious Hindi gender-agreement
+drift before text reaches TTS.
+
+---
+
+## MCP Server — domain logic and guardrails
+
+The in-process MCP server enforces:
+- **Source labelling** — every tool result includes source name, verification date,
+  and geography. The model is instructed to cite these.
+- **Fail-closed behaviour** — if a data source is unavailable, the tool returns
+  "information not available" rather than allowing the model to fill the gap.
+- **Scope boundaries** — scheme tools cannot access health tools and vice versa.
+  The `get_health_guidance` tool never returns diagnosis or dosage.
+- **Extensibility** — adding a new knowledge domain means adding one MCP tool with
+  a source label, safety scope, and freshness date. No LLM prompt restructuring needed.
+
+---
+
+## Context engineering
+
+| Technique | Implementation |
+|---|---|
+| **RAG** | Titan Text Embeddings v2 → DynamoDB `vaaniseva-vectors`; cosine search; 10-min vector cache |
+| **Curated fallback** | Official-source scheme snapshot used if AWS retrieval fails |
+| **Structured memory** | One-paragraph continuity summary per consenting caller; model sees text, not DB |
+| **Tool-grounded reasoning** | Model may not state factual figures without a tool result |
+| **Localization-aware context** | System instructions in target language; gender-correct Hindi first-person forms |
+| **Multi-step planning** | Intent router → domain tool → evidence validation → safety policy → persona voice |
+| **Guardrails before output** | Safety layer blocks diagnosis, dosage, invented prices before TTS |
+
+---
+
+## Ambience and latency masking
+
+A pre-selected CC0/Mixkit audio palette provides two sounds:
+- **Handoff cue** (Kenney `open_001`, 148 ms, −14 dB) — played once on persona transfer.
+- **Typing texture** (Mixkit laptop, 1.8 s finite, −24 dB) — played during scheme
+  search, eligibility, and mandi tool calls only. Excluded from health, helpline,
+  memory, consent, and identity paths.
+
+No audio loops. Pipecat interruption clears queued audio immediately. Ambience does
+not play during user speech (would damage VAD and STT). All assets have documented
+licences.
+
+---
+
+## Memory and privacy
+
+- Telephone number is salted and hashed to a one-way caller identifier before storage.
+- On each call with consent, the model sees a one-paragraph continuity summary
+  (preferred name, language, persona, broad help need). It never sees the database.
+- The model may propose a constrained memory patch (e.g. "update preferred persona
+  to Hitesh"); deterministic application code validates and applies or rejects it.
+- Rejected content: Aadhaar/PAN/bank numbers, OTPs, precise address, detailed
+  medical/financial/legal records, user-requested deletions.
+- Memory is bounded, inspectable, and deletable on caller request.
+
+---
+
+## Latency (measured stage timings)
+
+| Stage | Local (provider-backed) | Deployed EC2 (Twilio) |
+|---|---|---|
+| First greeting audio | 638 – 1,830 ms | 568 ms |
+| First grounded response audio | 1,082 – 3,432 ms | 1,267 ms |
+| First masking audio (search cue) | ~2,000 ms | — |
+| Barge-in clear event | 1 per interruption | 1 per interruption |
+
+Target: speech-end to first audible response ≤ 2.5 s. Telephone mu-law 8 kHz rendering adds perceptual overhead not reflected above. Record measured timings; do not claim the target until measured.
+
+---
+
+## What this system cannot yet do
+
+- Does not work without cellular voice coverage — the caller must have a call connection.
+- Does not operate offline — the cloud backend requires internet.
+- Does not diagnose, prescribe, or approve government benefits — all output is guidance.
+- Sarvam WebSocket STT was found unreliable; REST STT is used instead.
+- AgentCore deployment is scaffolded but not yet live — EC2 is the production host.
+- DynamoDB RAG requires the EC2 instance role to have `dynamodb:DescribeTable` + `dynamodb:Scan`; the curated snapshot is the current fallback.

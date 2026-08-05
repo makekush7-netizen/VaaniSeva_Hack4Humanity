@@ -21,12 +21,12 @@ export default function Navbar() {
         <div className="hidden items-center gap-8 md:flex">
           <a href="/#how-it-works" className={foreground}>How it works</a>
           <a href="/#schemes" className={foreground}>Schemes</a>
-          <a href="/pricing" className={foreground}>Pricing</a>
+          <a href="/pricing" className={foreground}>Access Model</a>
           <a href="/try" className="btn-primary text-sm !px-4 !py-2"><Phone size={14} /> Call now</a>
         </div>
         <button aria-label="Open navigation" onClick={() => setOpen(!open)} className={`p-2 md:hidden ${foreground}`}>{open ? <X /> : <Menu />}</button>
       </div>
-      {open && <div className="space-y-3 border-t bg-white px-6 py-4 md:hidden"><a href="/#how-it-works" className="block">How it works</a><a href="/#schemes" className="block">Schemes</a><a href="/pricing" className="block">Pricing</a><a href="/try" className="btn-primary w-full"><Phone size={14} /> Call now</a></div>}
+      {open && <div className="space-y-3 border-t bg-white px-6 py-4 md:hidden"><a href="/#how-it-works" className="block">How it works</a><a href="/#schemes" className="block">Schemes</a><a href="/pricing" className="block">Access Model</a><a href="/try" className="btn-primary w-full"><Phone size={14} /> Call now</a></div>}
     </nav>
   )
 }

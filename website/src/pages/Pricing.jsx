@@ -1,129 +1,107 @@
 import React from 'react'
 const Link = ({ to, children, ...props }) => <a href={to} {...props}>{children}</a>
-import { ArrowLeft, Check, Phone, Star, Briefcase } from 'lucide-react'
+import { ArrowLeft, Phone, Heart, Building2, Users } from 'lucide-react'
 
-const plans = [
+const partners = [
   {
-    name: 'Free',
-    hindi: 'मुफ़्त',
-    price: '₹0',
-    period: 'forever',
-    icon: Phone,
-    color: 'bg-gray-50 border-gray-200',
-    buttonStyle: 'btn-secondary',
-    features: [
-      '10 calls per month',
-      '4 languages supported',
-      'Government scheme info',
-      'Basic health guidance',
-      'Agriculture basics',
-    ],
+    icon: Users,
+    title: 'Citizens & Rural Communities',
+    hindi: 'ग्रामीण समुदाय',
+    desc: 'Free, always. VaaniSeva\'s core voice service — scheme information, mandi prices, health helplines — is and will remain free for individual callers. No account, no payment, no subscription.',
+    tag: 'Free forever',
+    tagColor: 'text-green-600 bg-green-50 border-green-200',
   },
   {
-    name: 'Pro',
-    hindi: 'प्रो',
-    price: '₹99',
-    period: '/month',
-    icon: Star,
-    color: 'bg-accent-50 border-accent-300',
-    buttonStyle: 'btn-primary',
-    popular: true,
-    features: [
-      'Unlimited calls',
-      'Full conversation history',
-      'Personalized AI (remembers you)',
-      'Priority response time',
-      'SMS summaries after calls',
-      'Custom context profile',
-      'Scheme enrollment tracking',
-    ],
+    icon: Building2,
+    title: 'NGOs & Government Bodies',
+    hindi: 'एनजीओ और सरकारी संस्थाएं',
+    desc: 'Partner organisations distributing verified public-interest information can deploy VaaniSeva with their own verified scheme corpus and a dedicated helpline number. Governed awareness — never advertising.',
+    tag: 'Partnership model',
+    tagColor: 'text-accent-600 bg-accent-50 border-accent-200',
   },
   {
-    name: 'Business',
-    hindi: 'व्यापार',
-    price: 'Custom',
-    period: '',
-    icon: Briefcase,
-    color: 'bg-gray-50 border-gray-200',
-    buttonStyle: 'btn-secondary',
-    features: [
-      'Everything in Pro',
-      'API access',
-      'Custom knowledge base',
-      'Dedicated support line',
-      'Analytics dashboard',
-      'Multi-user admin panel',
-      'SLA guarantee',
-    ],
+    icon: Heart,
+    title: 'Sustainability Philosophy',
+    hindi: 'स्थिरता का सिद्धांत',
+    desc: 'Cost per call scales down sharply with volume. The underlying architecture is serverless and consumption-based — no permanent compute cost when calls are not happening. No advertising. No data resale.',
+    tag: 'Cost-aware design',
+    tagColor: 'text-blue-600 bg-blue-50 border-blue-200',
   },
+]
+
+const costItems = [
+  { label: 'Voice STT (Sarvam, per call)', value: '~₹0.05' },
+  { label: 'LLM reasoning (Bedrock Nova Lite, per call)', value: '~₹0.15' },
+  { label: 'TTS audio (Cartesia/Sarvam, per call)', value: '~₹0.05' },
+  { label: 'Twilio telephony (per minute)', value: '~₹3.50' },
+  { label: 'Estimated total for a 3-minute call', value: '~₹11–14' },
 ]
 
 export default function Pricing() {
   return (
     <div className="min-h-screen bg-surface-secondary pt-20">
-      <div className="max-w-6xl mx-auto px-6 md:px-12 py-12">
+      <div className="max-w-5xl mx-auto px-6 md:px-12 py-12">
         <Link to="/" className="inline-flex items-center gap-2 text-sm text-content-secondary hover:text-accent-500 transition-colors mb-8">
           <ArrowLeft size={16} /> Back to Home
         </Link>
 
-        <div className="text-center mb-12">
-          <p className="text-sm font-semibold text-accent-500 uppercase tracking-wider mb-2">Pricing</p>
+        <div className="text-center mb-14">
+          <p className="text-sm font-semibold text-accent-500 uppercase tracking-wider mb-2">Access Model</p>
           <h1 className="text-3xl md:text-4xl font-bold text-content-primary mb-3">
-            Simple, Fair Pricing
+            Free for the people who need it most
           </h1>
           <p className="text-lg text-content-secondary max-w-xl mx-auto">
-            Start free. Upgrade when VaaniSeva becomes your go-to assistant.
+            The core VaaniSeva service is free for individual callers. The sustainability model is built around NGO and government partnerships — not subscription fees charged to rural users.
           </p>
           <p className="font-hindi text-accent-600 text-sm mt-2">
-            शुरुआत मुफ़्त है। जब वाणीसेवा आपकी ज़रूरत बन जाए, तब अपग्रेड करें।
+            जिन्हें सबसे ज़्यादा ज़रूरत है, उनके लिए मुफ़्त।
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          {plans.map((plan) => (
-            <div key={plan.name} className={`relative rounded-2xl border-2 p-8 ${plan.color} ${plan.popular ? 'shadow-lg scale-105 md:scale-105' : 'shadow-sm'}`}>
-              {plan.popular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-accent text-white text-xs font-bold px-4 py-1 rounded-full">
-                  Most Popular
-                </div>
-              )}
-
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${plan.popular ? 'bg-accent-100' : 'bg-gray-100'}`}>
-                  <plan.icon size={20} className={plan.popular ? 'text-accent-600' : 'text-content-secondary'} />
-                </div>
-                <div>
-                  <h3 className="font-bold text-content-primary text-lg">{plan.name}</h3>
-                  <p className="font-hindi text-xs text-content-secondary">{plan.hindi}</p>
-                </div>
+        <div className="grid md:grid-cols-3 gap-6 mb-14">
+          {partners.map((p) => (
+            <div key={p.title} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7 flex flex-col gap-4">
+              <div className="w-11 h-11 bg-accent-50 rounded-xl flex items-center justify-center">
+                <p.icon size={22} className="text-accent-500" />
               </div>
-
-              <div className="mb-6">
-                <span className="text-4xl font-bold text-content-primary">{plan.price}</span>
-                {plan.period && <span className="text-content-secondary text-sm ml-1">{plan.period}</span>}
+              <div>
+                <h3 className="font-bold text-content-primary text-lg leading-tight">{p.title}</h3>
+                <p className="font-hindi text-xs text-accent-500 mt-0.5">{p.hindi}</p>
               </div>
-
-              <ul className="space-y-3 mb-8">
-                {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2.5 text-sm text-content-secondary">
-                    <Check size={16} className="text-green-500 flex-shrink-0 mt-0.5" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-
-              <button className={`${plan.buttonStyle} w-full`}>
-                {plan.name === 'Business' ? 'Contact Us' : plan.name === 'Free' ? 'Get Started' : 'Coming Soon'}
-              </button>
+              <p className="text-sm text-content-secondary leading-relaxed flex-1">{p.desc}</p>
+              <span className={`self-start text-xs font-semibold border rounded-full px-3 py-1 ${p.tagColor}`}>{p.tag}</span>
             </div>
           ))}
         </div>
 
-        <div className="text-center mt-12 p-6 bg-white rounded-2xl border border-gray-100 shadow-sm max-w-2xl mx-auto">
-          <p className="text-sm text-content-secondary">
-            <strong>Hackathon Note:</strong> VaaniSeva is currently free for all users during the AI for Bharat Hackathon 2026 trial period.
-            Payment integration coming soon.
+        {/* Cost transparency */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 mb-10">
+          <h2 className="font-bold text-content-primary text-xl mb-1">Cost transparency</h2>
+          <p className="text-sm text-content-secondary mb-6">
+            These are approximate provider costs for one call — not charges to the caller. At volume, unit costs drop significantly. The goal is to keep the per-call cost well under ₹15 so the service is viable for NGO or government-subsidised deployment.
           </p>
+          <div className="divide-y divide-gray-100">
+            {costItems.map((item) => (
+              <div key={item.label} className="flex justify-between items-center py-3">
+                <span className="text-sm text-content-secondary">{item.label}</span>
+                <span className="text-sm font-semibold text-content-primary font-mono">{item.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CTA */}
+        <div className="text-center bg-gradient-to-br from-amber-50 to-orange-50 border border-accent-100 rounded-2xl p-10">
+          <h3 className="text-xl font-bold text-content-primary mb-2">Try VaaniSeva now — free, no signup</h3>
+          <p className="text-sm text-content-secondary mb-6">Call the number or open the browser demo. No account required.</p>
+          <div className="flex flex-wrap justify-center gap-4">
+            <a href="tel:+19788309619" className="inline-flex items-center gap-2 btn-primary text-base px-7 py-3.5">
+              <Phone size={18} /> Call +1 978 830 9619
+            </a>
+            <Link to="/try" className="inline-flex items-center gap-2 btn-secondary text-base px-7 py-3.5">
+              Try in Browser
+            </Link>
+          </div>
         </div>
       </div>
     </div>
