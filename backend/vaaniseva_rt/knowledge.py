@@ -131,7 +131,7 @@ def _scheme_score(item: dict[str, Any], query: str, state: str = "") -> int:
 
 HELPLINES = {
     "emergency": {"number": "112", "purpose": "pan-India emergency response", "source": "https://112.gov.in/"},
-    "health": {"number": "1075", "purpose": "national health helpline", "source": "https://www.mohfw.gov.in/"},
+    "pmjay": {"number": "14555", "purpose": "Ayushman Bharat PM-JAY national call centre", "source": "https://nha.gov.in/"},
     "farmer": {"number": "1800-180-1551", "purpose": "Kisan Call Centre", "source": "https://mkisan.gov.in/"},
 }
 
@@ -187,6 +187,12 @@ class LegacyVectorRAG:
         scored: list[tuple[float, dict[str, Any]]] = []
         query_norm = math.sqrt(sum(float(value) ** 2 for value in query_vector)) or 1.0
         for item in self._load_items():
+            # The vector corpus contains separate chunks per language. Hindi and
+            # Marathi share a script, so script detection is not enough: filter
+            # the DynamoDB record language before cosine ranking.
+            item_language = str(item.get("language", "")).strip().lower()
+            if item_language and item_language != language:
+                continue
             vector = item.get("embedding") or []
             if not vector or len(vector) != len(query_vector):
                 continue
@@ -282,10 +288,17 @@ class KnowledgeService:
         lowered = topic.lower()
         if any(word in lowered for word in ("farmer", "farming", "agriculture", "kisan", "crop", "mandi", "खेती", "किसान")):
             key = "farmer"
-        elif any(word in lowered for word in ("danger", "urgent", "suicide", "accident", "emergency")):
+        elif any(word in lowered for word in ("ayushman", "pm-jay", "pmjay", "आयुष्मान")):
+            key = "pmjay"
+        elif any(word in lowered for word in ("danger", "urgent", "suicide", "accident", "emergency", "आपात", "गंभीर")):
             key = "emergency"
         else:
-            key = next((name for name in HELPLINES if name in lowered), "health")
+            return self._result(
+                "Government of India official helplines",
+                [HELPLINES["emergency"], HELPLINES["pmjay"]],
+                safety="verified-navigation",
+                warning="No single generic national-health information number is stored here. Ask whether this is an emergency or an Ayushman Bharat PM-JAY query; never present 1075 as a generic health helpline.",
+            )
         return self._result(HELPLINES[key]["source"], [HELPLINES[key]], safety="verified-navigation")
 
     async def health_information(self, query: str) -> dict[str, Any]:

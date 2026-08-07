@@ -62,6 +62,11 @@ def build_llm_tools(
 
     async def get_verified_helpline(params: FunctionCallParams, topic: str):
         """Get an official emergency, health, or farmer helpline."""
+        lowered = topic.casefold()
+        if any(term in lowered for term in ("farmer", "farming", "agriculture", "kisan", "crop", "mandi", "खेती", "किसान")):
+            await activate_persona("hitesh")
+        elif not any(term in lowered for term in ("emergency", "urgent", "danger", "आपात")):
+            await activate_persona("vidya")
         await invoke(params, "get_verified_helpline", {"topic": topic})
 
     async def search_health_information(params: FunctionCallParams, query: str):

@@ -1,4 +1,5 @@
 import asyncio
+from io import BytesIO
 from unittest.mock import Mock, patch
 
 from vaaniseva_rt.knowledge import LegacyVectorRAG, KnowledgeService, create_mcp_server, tool_payload
@@ -16,6 +17,22 @@ def test_legacy_vector_rag_loads_embeddings_from_dynamodb_projection():
     assert records[0]["embedding"] == [0.1, 0.2]
     projection = table.scan.call_args.kwargs["ProjectionExpression"]
     assert "embedding" in projection.split(", ")
+
+
+def test_legacy_vector_rag_never_returns_marathi_for_a_hindi_query():
+    rag = LegacyVectorRAG("us-east-1", "vaaniseva-vectors", "model")
+    rag._items = [
+        {"scheme_id": "pmay", "section_id": "mr", "language": "mr", "embedding": [1.0, 0.0], "text": "Marathi guidance"},
+        {"scheme_id": "pmay", "section_id": "hi", "language": "hi", "embedding": [0.9, 0.1], "text_hi": "Hindi guidance"},
+    ]
+    rag._expires_at = float("inf")
+    client = Mock()
+    client.invoke_model.return_value = {"body": BytesIO(b'{"embedding": [1.0, 0.0]}')}
+
+    with patch("vaaniseva_rt.knowledge.boto3.client", return_value=client):
+        records = rag.search("PM Awas", language="hi")
+
+    assert [record["text"] for record in records] == ["Hindi guidance"]
 
 
 def test_scheme_result_has_source_and_freshness():
@@ -51,6 +68,17 @@ def test_agriculture_helpline_never_falls_back_to_health():
     for topic in ("agriculture", "farming support", "kisan", "खेती"):
         result = asyncio.run(KnowledgeService().helpline(topic))
         assert result["records"][0]["number"] == "1800-180-1551"
+
+
+def test_generic_health_query_never_returns_covid_1075():
+    result = asyncio.run(KnowledgeService().helpline("rashtriya swasthya helpline"))
+    assert {record["number"] for record in result["records"]} == {"112", "14555"}
+    assert all(record["number"] != "1075" for record in result["records"])
+
+
+def test_pmjay_helpline_is_scoped_to_14555():
+    result = asyncio.run(KnowledgeService().helpline("Ayushman Bharat PM-JAY"))
+    assert result["records"][0]["number"] == "14555"
 
 
 def test_mandi_never_invents_without_api_key():
