@@ -187,6 +187,11 @@ class LegacyVectorRAG:
         scored: list[tuple[float, dict[str, Any]]] = []
         query_norm = math.sqrt(sum(float(value) ** 2 for value in query_vector)) or 1.0
         for item in self._load_items():
+            # The DynamoDB corpus has separate language-specific chunks.  Never
+            # let a higher-scoring Marathi/Tamil chunk answer a Hindi request.
+            item_language = str(item.get("language", "")).strip().lower()
+            if item_language and item_language != language:
+                continue
             vector = item.get("embedding") or []
             if not vector or len(vector) != len(query_vector):
                 continue

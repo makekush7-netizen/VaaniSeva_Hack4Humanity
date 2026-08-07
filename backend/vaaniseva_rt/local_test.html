@@ -19,6 +19,8 @@
     .meter { height: 12px; overflow: hidden; border-radius: 99px; margin: 14px 0 8px; background: #18352f; }
     .meter > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg,#61e2b6,#ffe071,#ff777f); transition: width 45ms linear; }
     .readout { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 18px; font-size: 13px; color: #82a39a; }
+    .mic-picker { display: grid; gap: 6px; margin: 0 0 16px; font-size: 12px; color: #9fbbb4; }
+    .mic-picker select { width: 100%; border: 1px solid #315d55; border-radius: 10px; padding: 9px 10px; background: #0b201c; color: #effbf7; font: inherit; }
     .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     button { border: 0; border-radius: 14px; padding: 15px 18px; font: inherit; font-weight: 800; cursor: pointer; background: #61e2b6; color: #05251b; }
     button.secondary { background: #183b34; color: #dff8ef; }
@@ -44,6 +46,7 @@
     .embed-product main > p { max-width: 510px; font-size: 14px; }
     .embed-product .meter, .embed-product .readout, .embed-product small,
     .embed-product #micButton, .embed-product #playButton, .embed-product #agentButton { display: none; }
+    .embed-product .mic-picker { margin-bottom: 14px; font-size: 12px; }
     .embed-product .status { margin: 22px 0 14px; padding: 15px; font-size: 14px; }
     .embed-product .buttons { display: block; }
     .embed-product #productButton { display: block; width: 100%; padding: 15px; font-size: 15px; }
@@ -60,6 +63,9 @@
   <div class="status"><span id="dot" class="dot"></span><span id="status">Step 1 — start the microphone check</span></div>
   <div class="meter"><i id="level"></i></div>
   <div class="readout"><span id="mic">No microphone selected</span><span id="db">−∞ dB</span></div>
+  <label class="mic-picker" for="micSelect">Microphone in use
+    <select id="micSelect" disabled><option>Press Start to detect microphones</option></select>
+  </label>
   <div class="buttons">
     <button id="micButton">1. Start mic check</button>
     <button id="playButton" class="secondary" disabled>2. Play last 3 seconds</button>
@@ -82,6 +88,7 @@ const dot = document.querySelector('#dot');
 const level = document.querySelector('#level');
 const mic = document.querySelector('#mic');
 const db = document.querySelector('#db');
+const micSelect = document.querySelector('#micSelect');
 
 if (document.documentElement.classList.contains('embed-product')) {
   document.querySelector('.eyebrow').textContent = 'VaaniSeva · live voice';
@@ -90,7 +97,7 @@ if (document.documentElement.classList.contains('embed-product')) {
   statusEl.textContent = 'Your microphone starts only after you press the button';
 }
 
-let context, stream, source, processor, mute, socket;
+let context, stream, source, processor, mute, socket, selectedDeviceId = '';
 let recording = [], recordingFrames = 0, pcmCarry = [];
 let nextPlay = 0, playing = [], micReady = false, agentConnected = false;
 
@@ -151,15 +158,33 @@ function updateMeter(samples) {
   }
 }
 
+async function listMicrophones(activeTrack) {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const activeId = activeTrack?.getSettings?.().deviceId || selectedDeviceId;
+  const microphones = devices.filter(device => device.kind === 'audioinput');
+  micSelect.innerHTML = '';
+  for (const device of microphones) {
+    const option = document.createElement('option');
+    option.value = device.deviceId;
+    option.textContent = device.label || 'Microphone';
+    option.selected = device.deviceId === activeId;
+    micSelect.append(option);
+  }
+  selectedDeviceId = micSelect.value || activeId || '';
+  micSelect.disabled = !microphones.length;
+}
+
 async function startMic() {
   micButton.disabled = true;
   setStatus('Requesting microphone…');
   try {
     context = new AudioContext();
     await context.resume();
-    stream = await navigator.mediaDevices.getUserMedia({audio: true, video: false});
+    const audio = selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true;
+    stream = await navigator.mediaDevices.getUserMedia({audio, video: false});
     const track = stream.getAudioTracks()[0];
     mic.textContent = track.label || 'Default microphone';
+    await listMicrophones(track);
     source = context.createMediaStreamSource(stream);
     processor = context.createScriptProcessor(2048, 1, 1);
     mute = context.createGain();
@@ -273,6 +298,11 @@ playButton.addEventListener('click', playRecording);
 agentButton.addEventListener('click', connectAgent);
 productButton.addEventListener('click', startProductCall);
 stopButton.addEventListener('click', stopAll);
+micSelect.addEventListener('change', () => {
+  selectedDeviceId = micSelect.value;
+  if (agentConnected) setStatus('Microphone selected for the next conversation. Press Stop, then start again.', 'live');
+  else setStatus('Microphone selected. Press Start voice conversation.', 'live');
+});
 </script>
 </body>
 </html>
