@@ -131,7 +131,7 @@ def _scheme_score(item: dict[str, Any], query: str, state: str = "") -> int:
 
 HELPLINES = {
     "emergency": {"number": "112", "purpose": "pan-India emergency response", "source": "https://112.gov.in/"},
-    "pmjay": {"number": "14555", "purpose": "Ayushman Bharat PM-JAY national call centre", "source": "https://nha.gov.in/"},
+    "health": {"number": "1075", "purpose": "national health helpline", "source": "https://www.mohfw.gov.in/"},
     "farmer": {"number": "1800-180-1551", "purpose": "Kisan Call Centre", "source": "https://mkisan.gov.in/"},
 }
 
@@ -239,22 +239,19 @@ class KnowledgeService:
         self._cache: dict[str, tuple[float, dict[str, Any]]] = {}
         self._legacy_rag = LegacyVectorRAG(rag_region, rag_vectors_table, rag_embedding_model)
 
-    async def search_schemes(self, query: str, state: str = "", language: str = "") -> dict[str, Any]:
-        language = language if language in {"hi", "mr", "ta", "en"} else ("hi" if re.search(r"[\u0900-\u097f]", query) else "en")
+    async def search_schemes(self, query: str, state: str = "") -> dict[str, Any]:
+        language = "hi" if re.search(r"[\u0900-\u097f]", query) else "en"
         try:
             semantic = await asyncio.to_thread(self._legacy_rag.search, query, language)
         except (BotoCoreError, ClientError, KeyError, ValueError, OSError):
             semantic = []
         if semantic:
-            guidance = self._scheme_conversation_guidance(query, state)
             return self._result(
                 "AWS DynamoDB vaaniseva-vectors + Amazon Titan Text Embeddings v2",
                 semantic,
                 geography=state or "India",
                 retrieval="semantic-vector-rag",
                 warning="This corpus is guidance, not an approval decision. Confirm changing rules through the returned voice-accessible official channel.",
-                conversation_guidance=guidance,
-                language=language,
             )
         ranked = sorted(SCHEMES, key=lambda item: _scheme_score(item, query, state), reverse=True)
         matches = [dict(item) for item in ranked if _scheme_score(item, query, state) > 0][:3]
@@ -264,12 +261,10 @@ class KnowledgeService:
             geography=state or "India",
             retrieval="local-source-labelled-rag",
             warning="Scheme rules can change; use the returned official source and voice-accessible next step for final verification.",
-            conversation_guidance=self._scheme_conversation_guidance(query, state),
-            language=language,
         )
 
-    async def scheme_eligibility(self, scheme_name: str, state: str = "", language: str = "") -> dict[str, Any]:
-        semantic = await self.search_schemes(scheme_name, state, language)
+    async def scheme_eligibility(self, scheme_name: str, state: str = "") -> dict[str, Any]:
+        semantic = await self.search_schemes(scheme_name, state)
         if semantic.get("retrieval") == "semantic-vector-rag" and semantic.get("records"):
             semantic["records"] = semantic["records"][:2]
             semantic["eligibility_note"] = "Guidance only. Do not infer approval; explain a voice-accessible official next step."
@@ -292,55 +287,11 @@ class KnowledgeService:
         lowered = topic.lower()
         if any(word in lowered for word in ("farmer", "farming", "agriculture", "kisan", "crop", "mandi", "खेती", "किसान")):
             key = "farmer"
-        elif any(word in lowered for word in ("ayushman", "pm-jay", "pmjay", "आयुष्मान", "आरोग्य योजना")):
-            key = "pmjay"
-        elif any(word in lowered for word in ("danger", "urgent", "suicide", "accident", "emergency", "आपात", "गंभीर")):
+        elif any(word in lowered for word in ("danger", "urgent", "suicide", "accident", "emergency")):
             key = "emergency"
         else:
-            return self._result(
-                "Government of India official helplines",
-                [HELPLINES["emergency"], HELPLINES["pmjay"]],
-                safety="verified-navigation",
-                warning="There is no single generic national-health information number in this registry. Ask whether this is an emergency or an Ayushman Bharat PM-JAY query; do not present 1075 as a generic health helpline.",
-            )
+            key = next((name for name in HELPLINES if name in lowered), "health")
         return self._result(HELPLINES[key]["source"], [HELPLINES[key]], safety="verified-navigation")
-
-    async def agriculture_information(self, query: str) -> dict[str, Any]:
-        guidance = {
-            "scope": "safe integrated-pest-management navigation; no pesticide product or dosage recommendation without crop, pest, and local expert confirmation",
-            "first_steps": [
-                "Identify the crop, affected plant part, visible insect or symptom, and how much of the field is affected.",
-                "Separate or remove badly affected plant material where practical and keep the field and tools clean.",
-                "Use crop-appropriate monitoring, traps, or other non-chemical controls only after identifying the pest.",
-            ],
-            "expert_next_step": "For a crop-specific recommendation in the caller's local language, contact the Kisan Call Centre at 1800-180-1551 or the nearest Krishi Vigyan Kendra.",
-            "required_follow_up": "Ask which crop, what symptom or pest is visible, the district, and how much of the field is affected—one question at a time.",
-            "query": query,
-        }
-        return self._result(
-            "Government of India Kisan Call Centre and Integrated Pest Management extension network",
-            [guidance],
-            safety="verified-agriculture-navigation",
-            warning="Do not name a pesticide or dosage until the crop and pest are reliably identified and local official guidance is available.",
-        )
-
-    @staticmethod
-    def _scheme_conversation_guidance(query: str, state: str) -> dict[str, str]:
-        folded = query.casefold()
-        if any(term in folded for term in ("awas", "awaas", "आवास", "घरकुल")):
-            return {
-                "answer_shape": "Explain the relevant benefit, broad beneficiary group, and voice-accessible next step from the retrieved evidence.",
-                "required_follow_up": "Ask whether the home is in a rural or urban area and ask the state if it is not already known, because PMAY-G and PMAY-U differ.",
-            }
-        if any(term in folded for term in ("pm kisan", "pm-kisan", "पी एम किसान", "पीएम किसान")):
-            return {
-                "answer_shape": "Explain the annual benefit, broad exclusions, and payment/registration next step from the retrieved evidence.",
-                "required_follow_up": "Ask the caller's state and whether they want eligibility, registration, or payment-status help.",
-            }
-        return {
-            "answer_shape": "Explain the key benefit, who it helps, and one practical voice-accessible next step from the retrieved evidence.",
-            "required_follow_up": f"Ask one missing eligibility detail, starting with state{' (already supplied)' if state else ''}.",
-        }
 
     async def health_information(self, query: str) -> dict[str, Any]:
         urgent = any(term in query.lower() for term in ("chest pain", "can't breathe", "cannot breathe", "unconscious", "severe bleeding", "suicide", "poison"))
@@ -351,24 +302,21 @@ class KnowledgeService:
         }
         return self._result("https://www.mohfw.gov.in/", [guidance], safety="urgent-escalation" if urgent else "general-guidance")
 
-    async def mandi_price(self, commodity: str, state: str = "", district: str = "", market: str = "") -> dict[str, Any]:
+    async def mandi_price(self, commodity: str, state: str = "", district: str = "") -> dict[str, Any]:
         commodity = MANDI_TERMS.get(commodity.strip(), commodity.strip())
         state = MANDI_TERMS.get(state.strip(), state.strip())
         district = MANDI_TERMS.get(district.strip(), district.strip())
-        market = MANDI_TERMS.get(market.strip(), market.strip())
-        cache_key = f"{commodity}|{state}|{district}|{market}".lower()
+        cache_key = f"{commodity}|{state}|{district}".lower()
         cached = self._cache.get(cache_key)
         if cached and cached[0] > time.monotonic():
             return {**cached[1], "cache": "hit"}
         if not self.data_gov_api_key:
             return self._result(DATA_GOV_MANDI_RESOURCE, [], warning="DATA_GOV_API_KEY is unavailable; no price may be quoted.")
-        params = {"api-key": self.data_gov_api_key, "format": "json", "limit": "20", "filters[commodity]": commodity}
+        params = {"api-key": self.data_gov_api_key, "format": "json", "limit": "5", "filters[commodity]": commodity}
         if state:
             params["filters[state]"] = state
         if district:
             params["filters[district]"] = district
-        if market:
-            params["filters[market]"] = market
         try:
             timeout = aiohttp.ClientTimeout(total=2.5)
             # data.gov.in silently stalls the default Python/aiohttp user agent from
@@ -383,12 +331,7 @@ class KnowledgeService:
                 async with session.get(DATA_GOV_MANDI_RESOURCE, params=params) as response:
                     response.raise_for_status()
                     records = (await response.json()).get("records", [])
-            result = self._result(
-                DATA_GOV_MANDI_RESOURCE,
-                records,
-                geography=", ".join(filter(None, (market, district, state))) or "India",
-                warning=("No matching government mandi observations were returned for the requested location; ask for the district or nearest mandi and do not substitute another city." if not records else "Prices are reported market observations, not a guaranteed selling price."),
-            )
+            result = self._result(DATA_GOV_MANDI_RESOURCE, records, geography=", ".join(filter(None, (district, state))) or "India", warning="Prices are reported market observations, not a guaranteed selling price.")
             self._cache[cache_key] = (time.monotonic() + 300, result)
             return result
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
@@ -403,14 +346,14 @@ def create_mcp_server(service: KnowledgeService) -> MCPServer:
     server = MCPServer("vaaniseva-verified-knowledge", instructions="Verified, source-labelled public-interest information for VaaniSeva.")
 
     @server.tool()
-    async def search_government_schemes(query: str, state: str = "", language: str = "hi") -> dict[str, Any]:
+    async def search_government_schemes(query: str, state: str = "") -> dict[str, Any]:
         """Search the curated official scheme registry. Use before discussing schemes."""
-        return await service.search_schemes(query, state, language)
+        return await service.search_schemes(query, state)
 
     @server.tool()
-    async def get_scheme_eligibility(scheme_name: str, state: str = "", language: str = "hi") -> dict[str, Any]:
+    async def get_scheme_eligibility(scheme_name: str, state: str = "") -> dict[str, Any]:
         """Get official-source eligibility guidance without inferring acceptance."""
-        return await service.scheme_eligibility(scheme_name, state, language)
+        return await service.scheme_eligibility(scheme_name, state)
 
     @server.tool()
     async def get_verified_helpline(topic: str) -> dict[str, Any]:
@@ -423,14 +366,9 @@ def create_mcp_server(service: KnowledgeService) -> MCPServer:
         return await service.health_information(query)
 
     @server.tool()
-    async def search_agriculture_information(query: str) -> dict[str, Any]:
-        """Return safe crop and pest navigation and a local-language expert next step."""
-        return await service.agriculture_information(query)
-
-    @server.tool()
-    async def get_mandi_price(commodity: str, state: str = "", district: str = "", market: str = "") -> dict[str, Any]:
+    async def get_mandi_price(commodity: str, state: str = "", district: str = "") -> dict[str, Any]:
         """Fetch recent government mandi observations, with freshness and source."""
-        return await service.mandi_price(commodity, state, district, market)
+        return await service.mandi_price(commodity, state, district)
 
     return server
 

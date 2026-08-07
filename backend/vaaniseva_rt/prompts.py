@@ -32,24 +32,9 @@ def persona_contract(persona: str) -> dict[str, str]:
     return dict(PERSONAS.get(persona, PERSONAS["arya"]))
 
 
-def tts_provider_for_persona(persona: str, language: str = "hi") -> str:
+def tts_provider_for_persona(persona: str) -> str:
     """Keep Arya native and reserve the expressive Cartesia voice for Vidya."""
-    if language != "hi":
-        return "sarvam"
     return "cartesia" if persona == "vidya" else "sarvam"
-
-
-LANGUAGE_NAMES = {"hi": "Hindi", "mr": "Marathi", "ta": "Tamil", "en": "English"}
-
-
-def active_language_instruction(language: str) -> str:
-    code = language if language in LANGUAGE_NAMES else "hi"
-    return (
-        "CURRENT RESPONSE LANGUAGE (authoritative application state):\n"
-        f"- code: {code}\n- language: {LANGUAGE_NAMES[code]}\n"
-        "Answer entirely in this language and its natural script, even when retrieved text or "
-        "tool metadata uses another language. A caller's explicit language request applies immediately."
-    )
 
 
 def active_persona_instruction(persona: str) -> str:
@@ -101,9 +86,7 @@ ACTIVE AGENT AND GENDER RULES:
   while speaking with another agent's gender or voice.
 - Route by intent even when the caller does not name an agent: scheme/civic needs go
   through a scheme tool and Arya; farming/crop/mandi needs go through get_mandi_price
-  and Hitesh; crop pests/disease/cultivation go through search_agriculture_information
-  and Hitesh; health facts and health helplines go through the health/helpline tool and
-  Vidya. Never refuse
+  and Hitesh; health needs go through search_health_information and Vidya. Never refuse
   merely because the current agent has a different specialty. The tool performs the handoff.
 
 CALL CONTROL:
@@ -117,19 +100,6 @@ Never invent a source, price, eligibility rule, medical diagnosis, medicine, or 
 For immediate danger advise local emergency services; in India the emergency number is
 112. Acknowledge that you are an AI when asked. Do not claim the caller lacks internet:
 say VaaniSeva itself works through an ordinary voice call without mobile data.
-
-SPOKEN ANSWER QUALITY:
-- In Hindi, say quantities with Indian units and Hindi number words: "छह हजार रुपये"
-  and "दो लाख रुपये", never "six thousand" or mixed English number words.
-- Read helpline numbers digit by digit. Never turn 1075, 112, 14555, or a toll-free
-  number into hundreds or thousands. Follow the equivalent natural convention in Marathi,
-  Tamil, or English.
-- For a named scheme, give the key benefit, who it is for, and a practical voice-accessible
-  next step, then ask exactly one useful follow-up question. For PM Awas, first clarify
-  rural versus urban and the caller's state when that is not known.
-- For mandi prices, quote only returned records matching the requested location. If none
-  match, say so and ask for the district or nearest mandi; never substitute random cities.
-- End factual guidance with one specific next question, not a generic offer to help.
 
 Memory is optional. Only call remember_caller_preference after the caller explicitly
 asks you to remember or clearly consents. Never request or store Aadhaar, PAN, bank/card
@@ -145,6 +115,6 @@ def caller_context(card: dict[str, object] | None) -> str:
     return f"Validated, consented caller card: {clean}"
 
 
-def system_instruction_for(persona: str, card: dict[str, object] | None, language: str = "hi") -> str:
+def system_instruction_for(persona: str, card: dict[str, object] | None) -> str:
     """Compose the complete Bedrock instruction from current trusted app state."""
-    return f"{SYSTEM_PROMPT}\n\n{active_persona_instruction(persona)}\n\n{active_language_instruction(language)}\n\n{caller_context(card)}"
+    return f"{SYSTEM_PROMPT}\n\n{active_persona_instruction(persona)}\n\n{caller_context(card)}"

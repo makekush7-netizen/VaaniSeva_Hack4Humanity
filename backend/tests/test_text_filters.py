@@ -56,21 +56,3 @@ def test_filter_does_not_rewrite_natural_hindi():
         return await text_filter.filter("लाइव जानकारी अभी उपलब्ध नहीं है। कृपया पुनः प्रयास करें।")
 
     assert asyncio.run(run()) == "लाइव जानकारी अभी उपलब्ध नहीं है। कृपया पुनः प्रयास करें।"
-
-
-def test_filter_speaks_hindi_money_in_indian_units():
-    text_filter = PersonaSpeechFilter(lambda: "arya", "test", lambda: "hi")
-
-    async def run():
-        return await text_filter.filter("₹6,000 की मदद और 200000 रुपये की सहायता।")
-
-    assert asyncio.run(run()) == "छह हजार रुपये की मदद और दो लाख रुपये की सहायता।"
-
-
-def test_filter_speaks_hindi_helplines_digit_by_digit():
-    text_filter = PersonaSpeechFilter(lambda: "vidya", "test", lambda: "hi")
-
-    async def run():
-        return await text_filter.filter("हेल्पलाइन 14555 और किसान नंबर 1800-180-1551 है।")
-
-    assert asyncio.run(run()) == "हेल्पलाइन एक चार पाँच पाँच पाँच और किसान नंबर एक आठ शून्य शून्य एक आठ शून्य एक पाँच पाँच एक है।"

@@ -43,6 +43,18 @@ def test_scheme_result_has_source_and_freshness():
     assert any("farmer" in item["helps"] for item in result["records"])
 
 
+def test_scheme_search_prefers_legacy_vector_rag(monkeypatch):
+    service = KnowledgeService()
+    monkeypatch.setattr(
+        service._legacy_rag,
+        "search",
+        lambda query, language: [{"scheme_id": "pm-kisan", "section_id": "overview", "text": "verified", "similarity": 0.91}],
+    )
+    result = asyncio.run(service.search_schemes("PM Kisan"))
+    assert result["retrieval"] == "semantic-vector-rag"
+    assert "Titan" in result["source"]
+
+
 def test_mcp_server_calls_real_registered_tool():
     server = create_mcp_server(KnowledgeService())
     result = asyncio.run(server.call_tool("get_verified_helpline", {"topic": "farmer"}))
@@ -56,28 +68,6 @@ def test_agriculture_helpline_never_falls_back_to_health():
     for topic in ("agriculture", "farming support", "kisan", "खेती"):
         result = asyncio.run(KnowledgeService().helpline(topic))
         assert result["records"][0]["number"] == "1800-180-1551"
-
-
-def test_generic_health_query_never_returns_covid_1075():
-    result = asyncio.run(KnowledgeService().helpline("rashtriya swasthya helpline"))
-    numbers = {record["number"] for record in result["records"]}
-    assert "1075" not in numbers
-    assert numbers == {"112", "14555"}
-    assert "generic national-health" in result["warning"]
-
-
-def test_ayushman_helpline_is_scoped_and_verified():
-    result = asyncio.run(KnowledgeService().helpline("Ayushman Bharat PM-JAY"))
-    assert result["records"][0]["number"] == "14555"
-    assert "PM-JAY" in result["records"][0]["purpose"]
-
-
-def test_agriculture_information_requires_crop_specific_follow_up():
-    result = asyncio.run(KnowledgeService().agriculture_information("khet se keede kaise hataye"))
-    record = result["records"][0]
-    assert "crop" in record["required_follow_up"].lower()
-    assert "1800-180-1551" in record["expert_next_step"]
-    assert "pesticide" in result["warning"].lower()
 
 
 def test_mandi_never_invents_without_api_key():

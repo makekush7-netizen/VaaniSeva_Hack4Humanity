@@ -39,22 +39,20 @@ pipeline — no Twilio required. The browser demo on the Vercel site uses this p
 
 1. **Silero VAD** — detects speech / silence boundaries without sending audio to any
    external service. Triggers barge-in cancel when the caller speaks over playback.
-2. **Sarvam Saaras v3 STT** — REST call on complete utterance segments (16 kHz).
+2. **Sarvam Bulbul v2 STT** — REST call on complete utterance segments (16 kHz).
    Chosen over WebSocket STT after reliability testing showed the REST path is
    significantly more consistent for Indian languages.
-3. **Language + persona router** — deterministic at the application layer. Sarvam's
-   detected/requested language becomes authoritative state before the turn reaches
-   Bedrock and selects the same-language RAG partition and TTS language. Scheme and
-   eligibility → Arya; mandi, crop, and pests → Hitesh; health and health numbers → Vidya.
+3. **Intent + persona router** — deterministic at the application layer; topic drives
+   persona, not the caller's phrasing. Scheme/eligibility → Arya, mandi → Hitesh,
+   health → Vidya.
 4. **Amazon Bedrock Nova (Converse + streaming)** — reasoning and tool selection. The
    LLM sees only the bounded caller memory summary and the MCP tool definitions; it
    never has direct database access.
 5. **In-process MCP server** — the only path to external facts (see below).
 6. **Safety / evidence layer** — intercepts health output before TTS; blocks diagnosis,
    dosage, and invented prices; escalates emergencies to verified helplines.
-7. **TTS** — Sarvam Bulbul v2 for Arya and Hitesh; Cartesia Sonic 3 for Hindi Vidya.
-   Marathi, Tamil, and English force Sarvam's multilingual route. Voice, language, and
-   Bedrock system instruction switch atomically.
+7. **TTS** — Cartesia Sonic 3 (Arushi voice) for Arya; Sarvam Bulbul v2 for Hitesh
+   and Vidya. Voice and Bedrock system instruction switch atomically on persona transfer.
 8. **Barge-in** — Twilio `clear` or browser stop fires immediately when VAD detects
    caller speech during playback, cancelling in-flight TTS and Bedrock generation.
 
@@ -64,9 +62,9 @@ pipeline — no Twilio required. The browser demo on the Vercel site uses this p
 
 | Persona | Voice | Domain scope |
 |---|---|---|
-| **Arya** | Sarvam Bulbul v2 (Vidya speaker) | Government schemes, civic navigation, eligibility |
+| **Arya** | Cartesia Sonic 3 (Arushi) | Government schemes, civic navigation, eligibility |
 | **Hitesh** | Sarvam Bulbul v2 (Abhilash) | Agriculture advisory, mandi prices |
-| **Vidya** | Cartesia Sonic 3 in Hindi; Sarvam in other languages | Health navigation, helplines, safe escalation |
+| **Vidya** | Sarvam Bulbul v2 (Vidya) | Health navigation, helplines, safe escalation |
 
 Persona transfer is atomic: application state, Bedrock system instruction (regenerated
 from application state, not from conversation history), and TTS provider/voice all
@@ -84,12 +82,6 @@ The in-process MCP server enforces:
   "information not available" rather than allowing the model to fill the gap.
 - **Scope boundaries** — scheme tools cannot access health tools and vice versa.
   The `get_health_guidance` tool never returns diagnosis or dosage.
-- **Deterministic domain routing** — crop/pest queries invoke Hitesh's agriculture
-  tool; health-number queries invoke Vidya; generic health queries never return the
-  COVID-specific `1075` as a national-health number.
-- **Location-exact mandi behaviour** — district/market filters are passed to the
-  official API and an empty exact result asks for the nearest mandi instead of
-  substituting records from unrelated cities.
 - **Extensibility** — adding a new knowledge domain means adding one MCP tool with
   a source label, safety scope, and freshness date. No LLM prompt restructuring needed.
 
@@ -103,7 +95,7 @@ The in-process MCP server enforces:
 | **Curated fallback** | Official-source scheme snapshot used if AWS retrieval fails |
 | **Structured memory** | One-paragraph continuity summary per consenting caller; model sees text, not DB |
 | **Tool-grounded reasoning** | Model may not state factual figures without a tool result |
-| **Localization-aware context** | STT language state → same-language RAG → same-language TTS; gender-correct Hindi forms and deterministic spoken-number formatting |
+| **Localization-aware context** | System instructions in target language; gender-correct Hindi first-person forms |
 | **Multi-step planning** | Intent router → domain tool → evidence validation → safety policy → persona voice |
 | **Guardrails before output** | Safety layer blocks diagnosis, dosage, invented prices before TTS |
 

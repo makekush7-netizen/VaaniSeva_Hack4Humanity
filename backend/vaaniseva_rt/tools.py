@@ -18,11 +18,9 @@ def build_llm_tools(
     memory: SafeMemoryStore,
     caller_number: str,
     persona_state: dict[str, str] | None = None,
-    language_state: dict[str, str] | None = None,
     on_persona_changed: Callable[[str], Awaitable[None]] | None = None,
 ) -> list[Callable[..., Any]]:
     persona_state = persona_state if persona_state is not None else {"active": "arya"}
-    language_state = language_state if language_state is not None else {"active": "hi"}
 
     async def activate_persona(key: str) -> dict[str, str]:
         """Apply explicit and intent-based routing through the same state boundary."""
@@ -55,20 +53,15 @@ def build_llm_tools(
     async def search_government_schemes(params: FunctionCallParams, query: str, state: str = ""):
         """Search official-source government schemes relevant to a person's need."""
         await activate_persona("arya")
-        await invoke(params, "search_government_schemes", {"query": query, "state": state, "language": language_state["active"]})
+        await invoke(params, "search_government_schemes", {"query": query, "state": state})
 
     async def get_scheme_eligibility(params: FunctionCallParams, scheme_name: str, state: str = ""):
         """Check eligibility guidance for a named scheme before stating any rule."""
         await activate_persona("arya")
-        await invoke(params, "get_scheme_eligibility", {"scheme_name": scheme_name, "state": state, "language": language_state["active"]})
+        await invoke(params, "get_scheme_eligibility", {"scheme_name": scheme_name, "state": state})
 
     async def get_verified_helpline(params: FunctionCallParams, topic: str):
         """Get an official emergency, health, or farmer helpline."""
-        lowered = topic.casefold()
-        if any(term in lowered for term in ("farmer", "farming", "agriculture", "kisan", "crop", "mandi", "खेती", "किसान")):
-            await activate_persona("hitesh")
-        elif not any(term in lowered for term in ("emergency", "urgent", "danger", "आपात")):
-            await activate_persona("vidya")
         await invoke(params, "get_verified_helpline", {"topic": topic})
 
     async def search_health_information(params: FunctionCallParams, query: str):
@@ -76,15 +69,10 @@ def build_llm_tools(
         await activate_persona("vidya")
         await invoke(params, "search_health_information", {"query": query})
 
-    async def search_agriculture_information(params: FunctionCallParams, query: str):
-        """Get safe crop, pest, disease, and cultivation guidance before answering."""
-        await activate_persona("hitesh")
-        await invoke(params, "search_agriculture_information", {"query": query})
-
-    async def get_mandi_price(params: FunctionCallParams, commodity: str, state: str = "", district: str = "", market: str = ""):
+    async def get_mandi_price(params: FunctionCallParams, commodity: str, state: str = "", district: str = ""):
         """Get sourced recent mandi observations; never guess if records are absent."""
         await activate_persona("hitesh")
-        await invoke(params, "get_mandi_price", {"commodity": commodity, "state": state, "district": district, "market": market})
+        await invoke(params, "get_mandi_price", {"commodity": commodity, "state": state, "district": district})
 
     async def switch_persona(params: FunctionCallParams, persona: str):
         """Switch this call to Arya, Hitesh, or Vidya when the caller asks for that agent."""
@@ -153,4 +141,4 @@ def build_llm_tools(
         await asyncio.to_thread(memory.forget, caller_number)
         await params.result_callback({"ok": True, "forgotten": True})
 
-    return [switch_persona, end_call, search_government_schemes, get_scheme_eligibility, get_verified_helpline, search_health_information, search_agriculture_information, get_mandi_price, remember_caller_preference, forget_caller_memory]
+    return [switch_persona, end_call, search_government_schemes, get_scheme_eligibility, get_verified_helpline, search_health_information, get_mandi_price, remember_caller_preference, forget_caller_memory]

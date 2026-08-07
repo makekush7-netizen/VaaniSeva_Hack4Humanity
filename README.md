@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/Sarvam%20AI-STT%20%2B%20TTS-00B4D8?style=flat-square" />
   <img src="https://img.shields.io/badge/Twilio-Media%20Streams-F22F46?style=flat-square&logo=twilio&logoColor=white" />
   <img src="https://img.shields.io/badge/MCP-In--process%20Tools-10B981?style=flat-square" />
-  <img src="https://img.shields.io/badge/Tests-54%20passing-22C55E?style=flat-square&logo=pytest&logoColor=white" />
+  <img src="https://img.shields.io/badge/Tests-43%20passing-22C55E?style=flat-square&logo=pytest&logoColor=white" />
 </p>
 
 <p>
@@ -47,8 +47,8 @@ flowchart TD
     subgraph E["Pipecat Streaming Pipeline"]
         direction TB
         E1["Silero VAD — speech detection"]
-        E2["Sarvam Saaras v3 STT — REST, 16 kHz"]
-        E3["Language + Persona Router — deterministic app state"]
+        E2["Sarvam Bulbul v2 STT — REST, 16 kHz"]
+        E3["Intent + Persona Router — deterministic at app boundary"]
         E4["Amazon Bedrock Nova — reasoning + tool selection"]
         E5["Safety / Evidence Layer — no invented facts, no diagnosis"]
         E6["TTS — Cartesia Sonic 3 or Sarvam Bulbul v2"]
@@ -61,10 +61,10 @@ flowchart TD
         direction LR
         F1["search_government_schemes"]
         F2["get_mandi_price"]
-        F3["get_verified_helpline"]
-        F4["get_scheme_eligibility"]
-        F5["search_agriculture_information"]
-        F6["switch_persona + end_call"]
+        F3["get_health_helpline"]
+        F4["check_scheme_eligibility"]
+        F5["switch_persona"]
+        F6["end_call"]
     end
 
     F1 & F4 --> G[("DynamoDB RAG\nTitan Embeddings v2")]
@@ -87,9 +87,9 @@ Every factual statement — scheme benefits, crop prices, helpline numbers — m
 
 | Persona | Voice | Domain |
 |---|---|---|
-| **Arya** 👩 | Sarvam Bulbul v2 (Vidya speaker) | Government schemes · civic navigation · eligibility |
+| **Arya** 👩 | Cartesia Sonic 3 (Arushi) — warm, feminine | Government schemes · civic navigation · eligibility |
 | **Hitesh** 👨‍🌾 | Sarvam Bulbul v2 (Abhilash) — masculine | Agriculture advisory · live mandi prices |
-| **Vidya** 👩‍⚕️ | Cartesia Sonic 3 in Hindi; Sarvam for Marathi/Tamil/English | Health navigation · helplines · safe escalation |
+| **Vidya** 👩‍⚕️ | Sarvam Bulbul v2 (Vidya) — feminine | Health navigation · helplines · safe escalation |
 
 Persona transfer is **atomic** — application state, Bedrock system instruction, and TTS voice switch together. Gender-correct Hindi first-person forms are enforced deterministically before TTS.
 
@@ -103,7 +103,7 @@ Persona transfer is **atomic** — application state, Bedrock system instruction
 | **Curated fallback** | Official-source scheme snapshot used when AWS retrieval is unavailable |
 | **Structured memory** | One-paragraph continuity summary per consenting caller; model sees text, never the DB |
 | **Tool-grounded reasoning** | Model cannot state a price, benefit, or helpline without a tool result |
-| **Localization-aware context** | Detected/requested language selects the RAG partition, prompt contract, and TTS language |
+| **Localization-aware context** | System prompts in target language; regional Indian speech patterns |
 | **Guardrails before output** | Safety layer blocks diagnosis, dosage, and invented prices before TTS |
 | **Multi-step planning** | Intent router → domain tool → evidence validation → safety policy → persona voice |
 
@@ -112,15 +112,14 @@ Persona transfer is **atomic** — application state, Bedrock system instruction
 ## MCP tools
 
 <details>
-<summary><strong>View the grounded MCP tools</strong></summary>
+<summary><strong>View all 6 MCP tools</strong></summary>
 
 | Tool | Data source | Fail behaviour |
 |---|---|---|
 | `search_government_schemes` | DynamoDB RAG + curated official snapshot | Returns fallback snapshot, never invents |
-| `get_scheme_eligibility` | Same corpus | Returns "verify with official source" |
+| `check_scheme_eligibility` | Same corpus | Returns "verify with official source" |
 | `get_mandi_price` | data.gov.in Agmarknet (live) | Reports unavailability, no invented price |
-| `get_verified_helpline` | 112, NHA PM-JAY, and Kisan official registries | Scoped deterministic result; no generic 1075 fallback |
-| `search_agriculture_information` | Government Kisan/IPM extension guidance | Requires crop/pest/location follow-up; no guessed pesticide dosage |
+| `get_health_helpline` | Curated verified numbers (iCall, Vandrevala, NIMHANS) | Static, deterministic |
 | `switch_persona` | Internal application state | Atomic — state + Bedrock + TTS together |
 | `end_call` | Twilio REST API | Queues Hindi goodbye then `EndFrame` |
 
@@ -137,8 +136,8 @@ Adding a new knowledge domain = one new MCP tool with a source label, safety sco
 | **data.gov.in — Agmarknet** | Live mandi observations, 3,000+ mandis across India |
 | **Amazon Titan Text Embeddings v2** | Scheme document vectors in DynamoDB |
 | **Curated central scheme corpus** *(built for this project)* | PM-Kisan, Ayushman Bharat, MGNREGA, PM Awas, Sukanya Samriddhi, PM Ujjwala, Jan Dhan, Mudra — with Hindi/English aliases, eligibility, official source, verification date |
-| **112 ERSS / NHA PM-JAY registry** | Emergency 112 and scheme-specific 14555 health routing |
-| **Kisan Call Centre 1800-180-1551** | Agriculture helpline routing in local languages |
+| **iCall / Vandrevala / NIMHANS registry** | Verified mental-health helplines |
+| **Kisan Call Centre 1551** | Agriculture helpline routing |
 
 No user speech is stored. Caller memory is bounded, consent-gated, and deletable on request.
 
