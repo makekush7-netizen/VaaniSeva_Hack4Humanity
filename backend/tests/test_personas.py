@@ -46,10 +46,10 @@ def test_current_arya_contract_is_not_hardcoded_when_hitesh_is_active():
     assert "mandatory first-person Hindi grammar" in current_state
 
 
-def test_hybrid_tts_routing_swaps_arya_and_vidya_live_voices():
-    assert tts_provider_for_persona("arya") == "sarvam"
+def test_hybrid_tts_routing_keeps_human_selected_arya_voice():
+    assert tts_provider_for_persona("arya") == "cartesia"
     assert tts_provider_for_persona("hitesh") == "sarvam"
-    assert tts_provider_for_persona("vidya") == "cartesia"
+    assert tts_provider_for_persona("vidya") == "sarvam"
 
 
 def test_arya_and_vidya_use_the_corrected_native_voice_assignments():

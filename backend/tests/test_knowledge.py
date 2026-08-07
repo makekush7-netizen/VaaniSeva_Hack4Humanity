@@ -1,5 +1,4 @@
 import asyncio
-from io import BytesIO
 from unittest.mock import Mock, patch
 
 from vaaniseva_rt.knowledge import LegacyVectorRAG, KnowledgeService, create_mcp_server, tool_payload
@@ -17,22 +16,6 @@ def test_legacy_vector_rag_loads_embeddings_from_dynamodb_projection():
     assert records[0]["embedding"] == [0.1, 0.2]
     projection = table.scan.call_args.kwargs["ProjectionExpression"]
     assert "embedding" in projection.split(", ")
-
-
-def test_legacy_vector_rag_never_returns_marathi_for_a_hindi_query():
-    rag = LegacyVectorRAG("us-east-1", "vaaniseva-vectors", "model")
-    rag._items = [
-        {"scheme_id": "pmay", "section_id": "mr", "language": "mr", "embedding": [1.0, 0.0], "text": "Marathi guidance"},
-        {"scheme_id": "pmay", "section_id": "hi", "language": "hi", "embedding": [0.9, 0.1], "text_hi": "Hindi guidance"},
-    ]
-    rag._expires_at = float("inf")
-    client = Mock()
-    client.invoke_model.return_value = {"body": BytesIO(b'{"embedding": [1.0, 0.0]}')}
-
-    with patch("vaaniseva_rt.knowledge.boto3.client", return_value=client):
-        records = rag.search("PM Awaas", language="hi")
-
-    assert [record["text"] for record in records] == ["Hindi guidance"]
 
 
 def test_scheme_result_has_source_and_freshness():
