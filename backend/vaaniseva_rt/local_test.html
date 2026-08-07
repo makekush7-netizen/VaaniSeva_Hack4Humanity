@@ -99,7 +99,7 @@ if (document.documentElement.classList.contains('embed-product')) {
 
 let context, stream, source, processor, mute, socket, selectedDeviceId = '';
 let recording = [], recordingFrames = 0, pcmCarry = [];
-let nextPlay = 0, playing = [], micReady = false, agentConnected = false;
+let nextPlay = 0, playing = [], micReady = false, agentConnected = false, agentInputEnabledAt = 0;
 
 function setStatus(text, kind = '') { statusEl.textContent = text; dot.className = `dot ${kind}`; }
 
@@ -196,7 +196,7 @@ async function startMic() {
       const samples = event.inputBuffer.getChannelData(0);
       updateMeter(samples);
       rememberAudio(samples);
-      if (agentConnected) sendPCM(samples);
+      if (agentConnected && performance.now() >= agentInputEnabledAt) sendPCM(samples);
     };
     micButton.textContent = 'Mic check running';
     stopButton.disabled = false;
@@ -267,6 +267,7 @@ function playAgentPCM(buffer) {
 
 function connectAgent() {
   agentButton.disabled = true;
+  agentInputEnabledAt = Number.POSITIVE_INFINITY;
   setStatus('Connecting the real agent…', 'live');
   socket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/local/ws`);
   socket.binaryType = 'arraybuffer';
@@ -274,8 +275,9 @@ function connectAgent() {
   socket.onmessage = ({data}) => {
     if (typeof data === 'string') {
       const event = JSON.parse(data);
-      if (event.type === 'clear') { clearPlayback(); setStatus('Interrupted — listening', 'live'); }
+      if (event.type === 'clear') { clearPlayback(); setStatus('Listening — go ahead', 'live'); }
     } else {
+      if (!Number.isFinite(agentInputEnabledAt)) agentInputEnabledAt = performance.now() + 700;
       playAgentPCM(data);
       setStatus('VaaniSeva is speaking — you can interrupt', 'live');
     }
@@ -286,6 +288,7 @@ function connectAgent() {
 
 function stopAll() {
   agentConnected = false;
+  agentInputEnabledAt = 0;
   clearPlayback();
   if (socket && socket.readyState === WebSocket.OPEN) socket.close();
   if (processor) processor.disconnect();

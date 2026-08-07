@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import re
 from typing import Any, Callable
 
 from loguru import logger
@@ -85,8 +86,18 @@ class PersonaSpeechFilter(BaseTextFilter):
     PM_KISAN_FORMS = ("PM-KISAN", "PM KISAN", "PM-Kisan", "PM Kisan", "पीएम-किसान", "पीएम किसान")
     VAANISEVA_FORMS = ("VaaniSeva", "Vaaniseva", "VAANISEVA", "वाणीसेवा")
 
-    def __init__(self, active_persona: Callable[[], str], session_id: str = ""):
+    HINDI_0_TO_99 = (
+        "शून्य एक दो तीन चार पाँच छह सात आठ नौ दस ग्यारह बारह तेरह चौदह पंद्रह सोलह सत्रह अठारह उन्नीस "
+        "बीस इक्कीस बाईस तेईस चौबीस पच्चीस छब्बीस सत्ताईस अट्ठाईस उनतीस तीस इकतीस बत्तीस तैंतीस चौंतीस पैंतीस छत्तीस सैंतीस अड़तीस उनतालीस "
+        "चालीस इकतालीस बयालीस तैंतालीस चवालीस पैंतालीस छियालीस सैंतालीस अड़तालीस उनचास पचास इक्यावन बावन तिरपन चौवन पचपन छप्पन सत्तावन अट्ठावन उनसठ "
+        "साठ इकसठ बासठ तिरसठ चौंसठ पैंसठ छियासठ सड़सठ अड़सठ उनहत्तर सत्तर इकहत्तर बहत्तर तिहत्तर चौहत्तर पचहत्तर छिहत्तर सतहत्तर अठहत्तर उन्यासी "
+        "अस्सी इक्यासी बयासी तिरासी चौरासी पचासी छियासी सतासी अट्ठासी नवासी नब्बे इक्यानवे बानवे तिरानवे चौरानवे पंचानवे छियानवे सत्तानवे अट्ठानवे निन्यानवे"
+    ).split()
+    HINDI_DIGITS = tuple("शून्य एक दो तीन चार पाँच छह सात आठ नौ".split())
+
+    def __init__(self, active_persona: Callable[[], str], session_id: str = "", active_language: Callable[[], str] | None = None):
         self._active_persona = active_persona
+        self._active_language = active_language or (lambda: "hi")
         self._session_id = session_id
 
     def update_settings(self, settings: Mapping[str, Any]):
@@ -108,9 +119,43 @@ class PersonaSpeechFilter(BaseTextFilter):
             text = text.replace(form, "वाणी सेवा")
         return text
 
+    @classmethod
+    def _hindi_integer(cls, value: int) -> str:
+        if value < 100:
+            return cls.HINDI_0_TO_99[value]
+        parts: list[str] = []
+        for divisor, label in ((10_000_000, "करोड़"), (100_000, "लाख"), (1_000, "हजार"), (100, "सौ")):
+            count, value = divmod(value, divisor)
+            if count:
+                parts.extend((cls._hindi_integer(count), label))
+        if value:
+            parts.append(cls._hindi_integer(value))
+        return " ".join(parts)
+
+    @classmethod
+    def _normalize_hindi_numbers(cls, text: str) -> str:
+        def amount(match: re.Match[str]) -> str:
+            return cls._hindi_integer(int(match.group(1).replace(",", ""))) + " रुपये"
+
+        text = re.sub(r"₹\s*([\d,]+)(?:\s*(?:रुपये|रुपया))?", amount, text)
+        text = re.sub(r"(?<![\d,])([\d,]+)\s*(?:रुपये|रुपया)", amount, text)
+
+        def digits(match: re.Match[str]) -> str:
+            return " ".join(cls.HINDI_DIGITS[int(char)] for char in match.group(0) if char.isdigit())
+
+        text = re.sub(r"(?<!\d)\d{2,}(?:[- ]\d{2,})+(?!\d)", digits, text)
+        text = re.sub(
+            r"((?:नंबर|हेल्पलाइन)\s+)(\d{3,6})(?!\d)",
+            lambda m: m.group(1) + " ".join(cls.HINDI_DIGITS[int(char)] for char in m.group(2)),
+            text,
+        )
+        return text
+
     async def filter(self, text: str) -> str:
         persona = self._active_persona()
         filtered = self._normalize_brand_name(self._normalize_scheme_names(text))
+        if self._active_language() == "hi":
+            filtered = self._normalize_hindi_numbers(filtered)
         if persona == "hitesh":
             filtered = self._replace_all(filtered, self.MASCULINE_REPLACEMENTS)
         elif persona in {"arya", "vidya"}:

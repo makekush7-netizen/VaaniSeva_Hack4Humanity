@@ -5,6 +5,7 @@ from vaaniseva_rt.prompts import (
     persona_contract,
     system_instruction_for,
     tts_provider_for_persona,
+    active_language_instruction,
 )
 
 
@@ -55,3 +56,15 @@ def test_hybrid_tts_routing_swaps_arya_and_vidya_live_voices():
 def test_arya_and_vidya_use_the_corrected_native_voice_assignments():
     assert persona_contract("arya")["voice"] == "vidya"
     assert persona_contract("vidya")["voice"] == "arya"
+
+
+def test_non_hindi_turns_use_multilingual_sarvam_tts():
+    assert tts_provider_for_persona("vidya", "mr") == "sarvam"
+    assert tts_provider_for_persona("vidya", "ta") == "sarvam"
+    assert "language: Marathi" in active_language_instruction("mr")
+
+
+def test_prompt_routes_pests_health_helplines_and_specific_followups():
+    assert "search_agriculture_information" in SYSTEM_PROMPT
+    assert "health helplines" in SYSTEM_PROMPT
+    assert "PM Awas" in SYSTEM_PROMPT

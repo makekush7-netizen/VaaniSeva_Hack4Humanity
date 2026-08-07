@@ -38,6 +38,7 @@ from pipecat.workers.runner import WorkerRunner
 from .clips import ClipLibrary
 from .config import Settings
 from .knowledge import KnowledgeService, create_mcp_server
+from .language_router import LANGUAGE_ENUMS, LanguageStateProcessor
 from .memory import SafeMemoryStore
 from .prompts import PERSONAS, persona_contract, system_instruction_for, tts_provider_for_persona
 from .sarvam_rest_stt import SarvamRESTSTTService
@@ -102,6 +103,8 @@ async def run_bot(
     remembered_persona = str((caller_card or {}).get("persona", "")).lower()
     initial_persona = remembered_persona if remembered_persona in PERSONAS else "arya"
     persona_state = {"active": initial_persona}
+    remembered_language = str((caller_card or {}).get("language", "")).split("-", 1)[0].lower()
+    language_state = {"active": remembered_language if remembered_language in LANGUAGE_ENUMS else "hi"}
     if use_rest_stt:
         stt = SarvamRESTSTTService(api_key=settings.sarvam_api_key, sample_rate=audio_in_sample_rate)
     else:
@@ -118,13 +121,13 @@ async def run_bot(
     llm = AWSBedrockLLMService(
         settings=AWSBedrockLLMService.Settings(
             model=settings.bedrock_model,
-            system_instruction=system_instruction_for(initial_persona, caller_card),
+            system_instruction=system_instruction_for(initial_persona, caller_card, language_state["active"]),
             temperature=0.2,
             max_tokens=180,
         )
     )
     def speech_filters():
-        return [SuppressThinkingFilter(), PersonaSpeechFilter(lambda: persona_state["active"], session_id)]
+        return [SuppressThinkingFilter(), PersonaSpeechFilter(lambda: persona_state["active"], session_id, lambda: language_state["active"])]
 
     sarvam_tts = SarvamTTSService(
         api_key=settings.sarvam_api_key,
@@ -136,7 +139,7 @@ async def run_bot(
         settings=SarvamTTSService.Settings(
             model="bulbul:v2",
             voice=persona_contract(initial_persona)["voice"],
-            language=Language.HI,
+            language=LANGUAGE_ENUMS[language_state["active"]],
             pace=1.18,
             pitch=0.0,
             loudness=1.0,
@@ -158,29 +161,29 @@ async def run_bot(
         ),
     )
     tts_services = {"cartesia": cartesia_tts, "sarvam": sarvam_tts}
-    initial_tts = tts_services[tts_provider_for_persona(initial_persona)]
+    initial_tts = tts_services[tts_provider_for_persona(initial_persona, language_state["active"])]
     other_tts = sarvam_tts if initial_tts is cartesia_tts else cartesia_tts
     tts = ServiceSwitcher(services=[initial_tts, other_tts])
     clips = ClipLibrary(Path(__file__).parent / "assets" / "sounds")
 
-    async def apply_active_persona(persona: str) -> None:
-        """Atomically update the LLM contract and TTS voice after a valid handoff."""
+    async def apply_runtime_contract(persona: str, language: str, *, play_handoff: bool) -> None:
+        """Atomically update the LLM persona/language contract and matching TTS route."""
         contract = persona_contract(persona)
         await llm.process_frame(
             LLMUpdateSettingsFrame(
                 delta=AWSBedrockLLMService.Settings(
-                    system_instruction=system_instruction_for(persona, caller_card)
+                    system_instruction=system_instruction_for(persona, caller_card, language)
                 ),
                 service=llm,
             ),
             FrameDirection.DOWNSTREAM,
         )
-        provider = tts_provider_for_persona(persona)
+        provider = tts_provider_for_persona(persona, language)
         target_tts = tts_services[provider]
         if provider == "sarvam":
             await target_tts.process_frame(
                 TTSUpdateSettingsFrame(
-                    delta=SarvamTTSService.Settings(voice=contract["voice"]),
+                    delta=SarvamTTSService.Settings(voice=contract["voice"], language=LANGUAGE_ENUMS[language]),
                     service=target_tts,
                 ),
                 FrameDirection.DOWNSTREAM,
@@ -188,22 +191,33 @@ async def run_bot(
         await tts.process_frame(
             ManuallySwitchServiceFrame(service=target_tts), FrameDirection.DOWNSTREAM
         )
-        handoff_frame = clips.frame_for_handoff(expected_sample_rate=audio_out_sample_rate)
-        if handoff_frame:
-            await target_tts.queue_frame(handoff_frame)
+        if play_handoff:
+            handoff_frame = clips.frame_for_handoff(expected_sample_rate=audio_out_sample_rate)
+            if handoff_frame:
+                await target_tts.queue_frame(handoff_frame)
         logger.bind(
             session=session_id,
             persona=persona,
             gender=contract["gender"],
             voice=contract["voice"],
             tts_provider=provider,
+            language=language,
         ).info("active_persona_applied")
+
+    async def apply_active_persona(persona: str) -> None:
+        await apply_runtime_contract(persona, language_state["active"], play_handoff=True)
+
+    async def apply_active_language(language: str) -> None:
+        await apply_runtime_contract(persona_state["active"], language, play_handoff=False)
+
+    language_router = LanguageStateProcessor(language_state, apply_active_language, session_id)
 
     tools = build_llm_tools(
         mcp_server,
         memory,
         caller_number,
         persona_state,
+        language_state,
         on_persona_changed=apply_active_persona,
     )
 
@@ -227,6 +241,7 @@ async def run_bot(
         [
             transport.input(),
             stt,
+            language_router,
             user_aggregator,
             llm,
             tts,
