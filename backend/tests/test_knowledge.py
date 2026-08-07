@@ -1,6 +1,21 @@
 import asyncio
+from unittest.mock import Mock, patch
 
-from vaaniseva_rt.knowledge import KnowledgeService, create_mcp_server, tool_payload
+from vaaniseva_rt.knowledge import LegacyVectorRAG, KnowledgeService, create_mcp_server, tool_payload
+
+
+def test_legacy_vector_rag_loads_embeddings_from_dynamodb_projection():
+    table = Mock()
+    table.scan.return_value = {"Items": [{"embedding_id": "chunk-1", "embedding": [0.1, 0.2]}]}
+    resource = Mock()
+    resource.Table.return_value = table
+
+    with patch("vaaniseva_rt.knowledge.boto3.resource", return_value=resource):
+        records = LegacyVectorRAG("us-east-1", "vaaniseva-vectors", "model")._load_items()
+
+    assert records[0]["embedding"] == [0.1, 0.2]
+    projection = table.scan.call_args.kwargs["ProjectionExpression"]
+    assert "embedding" in projection.split(", ")
 
 
 def test_scheme_result_has_source_and_freshness():

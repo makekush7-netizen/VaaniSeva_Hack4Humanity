@@ -50,3 +50,8 @@ def test_hybrid_tts_routing_keeps_human_selected_arya_voice():
     assert tts_provider_for_persona("arya") == "cartesia"
     assert tts_provider_for_persona("hitesh") == "sarvam"
     assert tts_provider_for_persona("vidya") == "sarvam"
+
+
+def test_arya_and_vidya_use_the_corrected_native_voice_assignments():
+    assert persona_contract("arya")["voice"] == "vidya"
+    assert persona_contract("vidya")["voice"] == "arya"

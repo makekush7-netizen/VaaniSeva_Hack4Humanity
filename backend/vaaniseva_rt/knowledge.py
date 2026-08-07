@@ -160,7 +160,7 @@ class LegacyVectorRAG:
             if self._items and time.monotonic() < self._expires_at:
                 return self._items
             table = boto3.resource("dynamodb", region_name=self.region).Table(self.table_name)
-            projection = "embedding_id, scheme_id, section_id, #lang, #txt, text_hi, text_mr, text_ta, text_en"
+            projection = "embedding_id, embedding, scheme_id, section_id, #lang, #txt, text_hi, text_mr, text_ta, text_en"
             names = {"#lang": "language", "#txt": "text"}
             page = table.scan(ProjectionExpression=projection, ExpressionAttributeNames=names)
             items = page.get("Items", [])

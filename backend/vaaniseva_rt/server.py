@@ -230,7 +230,7 @@ async def local_websocket_endpoint(websocket: WebSocket):
             transport,
             WebSocketRunnerArguments(websocket=websocket),
             settings,
-            vad_params=VADParams(confidence=0.5, start_secs=0.12, stop_secs=0.35, min_volume=0.15),
+            vad_params=VADParams(confidence=0.55, start_secs=0.12, stop_secs=0.35, min_volume=0.15),
             use_rest_stt=True,
             audio_in_sample_rate=16000,
             audio_out_sample_rate=24000,
