@@ -25,7 +25,7 @@ MANDI_TERMS = {
 SCHEMES = [
     {
         "name": "PM-KISAN Samman Nidhi",
-        "aliases": ["PM Kisan", "पीएम किसान", "पी एम किसान", "किसान सम्मान निधि", "किसान की सालाना सहायता"],
+        "aliases": ["PM Kisan", "PM किसान", "पीएम किसान", "पी एम किसान", "किसान सम्मान निधि", "किसान की सालाना सहायता"],
         "helps": "eligible landholding farmer families, subject to official exclusion categories",
         "benefit": "₹6,000 per year paid by direct benefit transfer in three equal instalments",
         "next_step": "eligibility and payment status can be checked through the PM-KISAN helpdesk or a nearby Common Service Centre",
@@ -81,7 +81,7 @@ SCHEMES = [
     },
     {
         "name": "Pradhan Mantri Awas Yojana",
-        "aliases": ["PMAY", "PM Awas", "PM Awaas", "पीएम आवास", "पी एम आवास", "प्रधानमंत्री आवास"],
+        "aliases": ["PMAY", "PM Awas", "PM Awaas", "PM आवास", "पीएम आवास", "पी एम आवास", "प्रधानमंत्री आवास"],
         "helps": "eligible households needing housing support, under different current rural and urban scheme rules",
         "benefit": "housing assistance may support a rural pucca house or eligible urban construction, purchase, rental, or interest-subsidy routes, depending on location and current rules",
         "next_step": "first identify whether the home is in a rural or urban area and the state, then check the matching official scheme route",
@@ -105,7 +105,7 @@ SCHEMES = [
     },
     {
         "name": "Pradhan Mantri MUDRA Yojana",
-        "aliases": ["PMMY", "PM Mudra", "पीएम मुद्रा", "पी एम मुद्रा", "योग मुद्रा योजना", "प्रधानमंत्री मुद्रा", "मुद्रा लोन"],
+        "aliases": ["PMMY", "PM Mudra", "PM मुद्रा", "पीएम मुद्रा", "पी एम मुद्रा", "योग मुद्रा योजना", "प्रधानमंत्री मुद्रा", "मुद्रा लोन"],
         "helps": "micro enterprises needing institutional credit for income-generating manufacturing, trading, services, or eligible allied activities",
         "benefit": "collateral-free institutional credit through member lending institutions, with Shishu, Kishor, Tarun, and conditional Tarun Plus categories under current rules",
         "next_step": "ask a participating bank, NBFC, or microfinance institution which category fits the business and what documents it requires",
@@ -157,7 +157,10 @@ def _scheme_score(item: dict[str, Any], query: str, state: str = "") -> int:
 
 
 def _normalise_scheme_phrase(value: str) -> str:
-    return " ".join(re.findall(r"[\w\u0900-\u097f]+", value.casefold()))
+    phrase = " ".join(re.findall(r"[\w\u0900-\u097f]+", value.casefold()))
+    # Sarvam commonly transcribes an English “PM” followed by a Devanagari name.
+    # Canonicalising the acronym makes PM किसान/आवास/मुद्रा match their exact records.
+    return re.sub(r"\bpm\b", "पी एम", phrase)
 
 
 def _exact_scheme_match(query: str) -> dict[str, Any] | None:

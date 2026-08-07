@@ -33,8 +33,8 @@ def persona_contract(persona: str) -> dict[str, str]:
 
 
 def tts_provider_for_persona(persona: str, language: str = "hi") -> str:
-    """Use distinct Cartesia Hindi voices; use Sarvam for multilingual speech."""
-    if language == "hi" and persona in {"arya", "vidya"}:
+    """Restore the accepted hybrid route; Sarvam handles Arya and multilingual speech."""
+    if language == "hi" and persona == "vidya":
         return "cartesia"
     return "sarvam"
 

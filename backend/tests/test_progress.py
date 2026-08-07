@@ -13,7 +13,7 @@ def test_health_paths_do_not_add_decorative_progress_speech():
 
 
 def test_exact_named_schemes_do_not_wait_behind_progress_audio():
-    for query in ("PM Kisan Yojana", "पी एम आवास योजना", "योग मुद्रा योजना"):
+    for query in ("PM Kisan Yojana", "PM किसान योजना", "PM आवास योजना", "PM मुद्रा योजना", "योग मुद्रा योजना"):
         assert not should_play_tool_progress("search_government_schemes", {"query": query})
 
 

@@ -83,6 +83,22 @@ def test_exact_named_scheme_skips_slow_semantic_lookup(monkeypatch):
     semantic.assert_not_called()
 
 
+def test_mixed_script_pm_names_take_the_exact_fast_path(monkeypatch):
+    service = KnowledgeService()
+    semantic = Mock(side_effect=AssertionError("mixed-script PM name should not invoke vector RAG"))
+    monkeypatch.setattr(service._legacy_rag, "search", semantic)
+
+    for query, expected in (
+        ("PM किसान योजना", "PM-KISAN Samman Nidhi"),
+        ("PM आवास योजना", "Pradhan Mantri Awas Yojana"),
+        ("PM मुद्रा योजना", "Pradhan Mantri MUDRA Yojana"),
+    ):
+        result = asyncio.run(service.search_schemes(query))
+        assert result["retrieval"] == "exact-curated-scheme"
+        assert result["records"][0]["name"] == expected
+    semantic.assert_not_called()
+
+
 def test_pm_awas_and_mudra_names_have_exact_curated_answers():
     service = KnowledgeService()
     awas = asyncio.run(service.search_schemes("PM Awas Yojana"))

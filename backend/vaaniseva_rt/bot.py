@@ -36,7 +36,7 @@ from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams
 from pipecat.workers.runner import WorkerRunner
 
 from .clips import ClipLibrary
-from .config import Settings, cartesia_voice_for_persona
+from .config import Settings
 from .explicit_language import ExplicitLanguageProcessor, LANGUAGE_ENUMS
 from .knowledge import KnowledgeService, create_mcp_server, is_exact_scheme_query
 from .memory import SafeMemoryStore
@@ -176,7 +176,7 @@ async def run_bot(
         text_filters=speech_filters(),
         settings=CartesiaTTSService.Settings(
             model="sonic-3",
-            voice=cartesia_voice_for_persona(settings, initial_persona),
+            voice=settings.cartesia_voice,
             language=Language.HI,
         ),
     )
@@ -211,10 +211,9 @@ async def run_bot(
                 FrameDirection.DOWNSTREAM,
             )
         else:
-            cartesia_voice = cartesia_voice_for_persona(settings, persona)
             await target_tts.process_frame(
                 TTSUpdateSettingsFrame(
-                    delta=CartesiaTTSService.Settings(voice=cartesia_voice, language=Language.HI),
+                    delta=CartesiaTTSService.Settings(voice=settings.cartesia_voice, language=Language.HI),
                     service=target_tts,
                 ),
                 FrameDirection.DOWNSTREAM,
