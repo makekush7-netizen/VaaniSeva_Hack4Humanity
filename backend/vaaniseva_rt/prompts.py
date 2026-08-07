@@ -33,8 +33,8 @@ def persona_contract(persona: str) -> dict[str, str]:
 
 
 def tts_provider_for_persona(persona: str) -> str:
-    """Use the human-selected expressive Arya voice; keep native voices elsewhere."""
-    return "cartesia" if persona == "arya" else "sarvam"
+    """Keep Arya native and reserve the expressive Cartesia voice for Vidya."""
+    return "cartesia" if persona == "vidya" else "sarvam"
 
 
 def active_persona_instruction(persona: str) -> str:

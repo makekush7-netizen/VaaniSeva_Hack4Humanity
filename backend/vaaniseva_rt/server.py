@@ -230,7 +230,9 @@ async def local_websocket_endpoint(websocket: WebSocket):
             transport,
             WebSocketRunnerArguments(websocket=websocket),
             settings,
-            vad_params=VADParams(confidence=0.55, start_secs=0.12, stop_secs=0.35, min_volume=0.15),
+            # Browser audio is amplified in the client. Require a clearer, longer
+            # utterance before it can cancel the assistant; phone VAD is unchanged.
+            vad_params=VADParams(confidence=0.65, start_secs=0.20, stop_secs=0.45, min_volume=0.18),
             use_rest_stt=True,
             audio_in_sample_rate=16000,
             audio_out_sample_rate=24000,

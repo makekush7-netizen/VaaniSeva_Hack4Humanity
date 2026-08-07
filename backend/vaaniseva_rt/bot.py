@@ -45,6 +45,13 @@ from .text_filters import PersonaSpeechFilter, SuppressThinkingFilter
 from .tools import build_llm_tools
 
 
+TOOL_PROGRESS_SPEECH = {
+    "search_government_schemes": "एक पल, मैं योजना की जानकारी जाँच रही हूँ।",
+    "get_scheme_eligibility": "एक पल, मैं पात्रता की जानकारी जाँच रही हूँ।",
+    "get_mandi_price": "एक पल, मैं मंडी की ताज़ा जानकारी जाँच रहा हूँ।",
+}
+
+
 def _caller_number(runner_args: RunnerArguments) -> str:
     call_data = runner_args.call_data
     if not call_data:
@@ -212,6 +219,11 @@ async def run_bot(
         tool_name = _function_name(function_calls[0]) if function_calls else ""
         arguments = _function_arguments(function_calls[0]) if function_calls else {}
         logger.bind(session=session_id, persona=persona_state["active"], tool=tool_name, arguments=arguments).info("grounded_tool_started")
+        progress = TOOL_PROGRESS_SPEECH.get(tool_name)
+        if progress:
+            # Prevent a slow RAG/live-price lookup from feeling like a dead call.
+            # Health and emergency paths intentionally stay free of decorative audio.
+            await worker.queue_frames([TTSSpeakFrame(progress, append_to_context=False)])
         search_frame = clips.frame_for_search(tool_name, expected_sample_rate=audio_out_sample_rate)
         if search_frame:
             await tts.strategy.active_service.queue_frame(search_frame)

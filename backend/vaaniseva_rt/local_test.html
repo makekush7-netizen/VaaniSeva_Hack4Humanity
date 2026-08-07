@@ -116,7 +116,8 @@ function downsample(samples, inputRate) {
   let squareSum = 0;
   for (const value of samples) squareSum += value * value;
   const rms = Math.sqrt(squareSum / Math.max(1, samples.length));
-  const gain = rms > .002 ? Math.min(6, Math.max(1, .07 / rms)) : 1;
+  // Prevent room noise and playback echo from becoming a false barge-in.
+  const gain = rms > .002 ? Math.min(3, Math.max(1, .04 / rms)) : 1;
   for (let i = 0; i < count; i++) {
     const start = Math.floor(i * ratio), end = Math.max(start + 1, Math.floor((i + 1) * ratio));
     let sum = 0;
@@ -157,7 +158,10 @@ async function startMic() {
   try {
     context = new AudioContext();
     await context.resume();
-    stream = await navigator.mediaDevices.getUserMedia({audio: true, video: false});
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false, channelCount: 1 },
+      video: false,
+    });
     const track = stream.getAudioTracks()[0];
     mic.textContent = track.label || 'Default microphone';
     source = context.createMediaStreamSource(stream);
