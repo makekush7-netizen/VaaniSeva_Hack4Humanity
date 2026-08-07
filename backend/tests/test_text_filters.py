@@ -49,6 +49,15 @@ def test_filter_normalizes_pm_awas_and_mudra_for_tts_pronunciation():
     assert asyncio.run(run()) == "पी एम आवास योजना और पी एम मुद्रा योजना"
 
 
+def test_filter_uses_the_active_language_for_pm_pronunciation():
+    text_filter = PersonaSpeechFilter(lambda: "arya", "test", lambda: "en")
+
+    async def run():
+        return await text_filter.filter("PM-KISAN, PM Awas, and PM Mudra")
+
+    assert asyncio.run(run()) == "P M Kisan, P M Awas, and P M Mudra"
+
+
 def test_filter_normalizes_brand_for_tts_pronunciation():
     text_filter = PersonaSpeechFilter(lambda: "arya", "test")
 

@@ -21,6 +21,15 @@ def _env(name: str, default: str = "") -> str:
     return os.getenv(name, default).strip()
 
 
+def cartesia_voice_for_persona(settings: object, persona: str) -> str:
+    """Keep Arya's original Arushi ID distinct from Vidya's Riya ID."""
+    if persona == "vidya":
+        return str(getattr(settings, "cartesia_vidya_voice"))
+    if persona == "hitesh":
+        return str(getattr(settings, "cartesia_hitesh_voice"))
+    return str(getattr(settings, "cartesia_voice"))
+
+
 @dataclass(frozen=True)
 class Settings:
     aws_region: str

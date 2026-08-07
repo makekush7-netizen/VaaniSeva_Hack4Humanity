@@ -1,3 +1,6 @@
+from types import SimpleNamespace
+
+from vaaniseva_rt.config import cartesia_voice_for_persona
 from vaaniseva_rt.prompts import (
     PERSONAS,
     SYSTEM_PROMPT,
@@ -46,12 +49,32 @@ def test_current_arya_contract_is_not_hardcoded_when_hitesh_is_active():
     assert "mandatory first-person Hindi grammar" in current_state
 
 
-def test_hybrid_tts_routing_restores_the_accepted_arya_vidya_voice_swap():
-    assert tts_provider_for_persona("arya") == "sarvam"
+def test_hybrid_tts_routing_uses_cartesia_for_distinct_hindi_female_voices():
+    assert tts_provider_for_persona("arya") == "cartesia"
     assert tts_provider_for_persona("hitesh") == "sarvam"
     assert tts_provider_for_persona("vidya") == "cartesia"
+    assert tts_provider_for_persona("arya", "mr") == "sarvam"
+    assert tts_provider_for_persona("vidya", "en") == "sarvam"
+
+
+def test_explicit_language_is_authoritative_in_system_instruction():
+    instruction = system_instruction_for("arya", None, "mr")
+    assert "CURRENT SPOKEN LANGUAGE" in instruction
+    assert "Marathi" in instruction
+    assert "do not apologize or refuse" in instruction
 
 
 def test_arya_and_vidya_use_the_corrected_native_voice_assignments():
     assert persona_contract("arya")["voice"] == "vidya"
     assert persona_contract("vidya")["voice"] == "arya"
+
+
+def test_arya_and_vidya_have_distinct_cartesia_voice_ids():
+    settings = SimpleNamespace(
+        cartesia_voice="arushi",
+        cartesia_vidya_voice="riya",
+        cartesia_hitesh_voice="male",
+    )
+    assert cartesia_voice_for_persona(settings, "arya") == "arushi"
+    assert cartesia_voice_for_persona(settings, "vidya") == "riya"
+    assert cartesia_voice_for_persona(settings, "arya") != cartesia_voice_for_persona(settings, "vidya")

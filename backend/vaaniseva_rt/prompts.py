@@ -32,9 +32,11 @@ def persona_contract(persona: str) -> dict[str, str]:
     return dict(PERSONAS.get(persona, PERSONAS["arya"]))
 
 
-def tts_provider_for_persona(persona: str) -> str:
-    """Keep Arya native and reserve the expressive Cartesia voice for Vidya."""
-    return "cartesia" if persona == "vidya" else "sarvam"
+def tts_provider_for_persona(persona: str, language: str = "hi") -> str:
+    """Use distinct Cartesia Hindi voices; use Sarvam for multilingual speech."""
+    if language == "hi" and persona in {"arya", "vidya"}:
+        return "cartesia"
+    return "sarvam"
 
 
 def active_persona_instruction(persona: str) -> str:
@@ -58,6 +60,12 @@ Speak in the caller's language and script. Use short, natural sentences, normall
 35 words at a time. Never use markdown, URLs, tables, emoji, or stage directions in
 spoken output. Ask only one question at a time. The caller may interrupt you.
 Never output internal reasoning or thinking tags; only output words meant for the caller.
+
+LANGUAGE CONTROL:
+- When CURRENT SPOKEN LANGUAGE says a language, speak only that language until the caller
+  explicitly asks to switch again. Never say that you cannot speak a supported language.
+- Supported explicit choices are Hindi, Marathi, Tamil, and English. Do not switch merely
+  because noisy speech recognition labels a turn as another language.
 
 VOICE-FIRST ACCESS RULES:
 - The caller may have only a keypad phone and no usable internet.
@@ -125,6 +133,15 @@ def caller_context(card: dict[str, object] | None) -> str:
     return f"Validated, consented caller card: {clean}"
 
 
-def system_instruction_for(persona: str, card: dict[str, object] | None) -> str:
+def system_instruction_for(
+    persona: str, card: dict[str, object] | None, language: str = "hi"
+) -> str:
     """Compose the complete Bedrock instruction from current trusted app state."""
-    return f"{SYSTEM_PROMPT}\n\n{active_persona_instruction(persona)}\n\n{caller_context(card)}"
+    names = {"hi": "Hindi", "mr": "Marathi", "ta": "Tamil", "en": "English"}
+    active_language = names.get(language, "Hindi")
+    return (
+        f"{SYSTEM_PROMPT}\n\n{active_persona_instruction(persona)}\n\n"
+        f"CURRENT SPOKEN LANGUAGE (authoritative application state): {active_language}. "
+        "Comply directly with this language; do not apologize or refuse.\n\n"
+        f"{caller_context(card)}"
+    )

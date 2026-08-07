@@ -18,9 +18,11 @@ def build_llm_tools(
     memory: SafeMemoryStore,
     caller_number: str,
     persona_state: dict[str, str] | None = None,
+    language_state: dict[str, str] | None = None,
     on_persona_changed: Callable[[str], Awaitable[None]] | None = None,
 ) -> list[Callable[..., Any]]:
     persona_state = persona_state if persona_state is not None else {"active": "arya"}
+    language_state = language_state if language_state is not None else {"active": "hi"}
 
     async def activate_persona(key: str) -> dict[str, str]:
         """Apply explicit and intent-based routing through the same state boundary."""
@@ -53,12 +55,16 @@ def build_llm_tools(
     async def search_government_schemes(params: FunctionCallParams, query: str, state: str = ""):
         """Search official-source government schemes relevant to a person's need."""
         await activate_persona("arya")
-        await invoke(params, "search_government_schemes", {"query": query, "state": state})
+        await invoke(params, "search_government_schemes", {
+            "query": query, "state": state, "language": language_state["active"]
+        })
 
     async def get_scheme_eligibility(params: FunctionCallParams, scheme_name: str, state: str = ""):
         """Check eligibility guidance for a named scheme before stating any rule."""
         await activate_persona("arya")
-        await invoke(params, "get_scheme_eligibility", {"scheme_name": scheme_name, "state": state})
+        await invoke(params, "get_scheme_eligibility", {
+            "scheme_name": scheme_name, "state": state, "language": language_state["active"]
+        })
 
     async def get_verified_helpline(params: FunctionCallParams, topic: str):
         """Get an official emergency, health, or farmer helpline."""

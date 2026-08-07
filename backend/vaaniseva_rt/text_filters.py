@@ -87,9 +87,15 @@ class PersonaSpeechFilter(BaseTextFilter):
     PM_MUDRA_FORMS = ("PM-MUDRA", "PM MUDRA", "PM-Mudra", "PM Mudra", "PM मुद्रा", "पीएम मुद्रा")
     VAANISEVA_FORMS = ("VaaniSeva", "Vaaniseva", "VAANISEVA", "वाणीसेवा")
 
-    def __init__(self, active_persona: Callable[[], str], session_id: str = ""):
+    def __init__(
+        self,
+        active_persona: Callable[[], str],
+        session_id: str = "",
+        active_language: Callable[[], str] | None = None,
+    ):
         self._active_persona = active_persona
         self._session_id = session_id
+        self._active_language = active_language or (lambda: "hi")
 
     def update_settings(self, settings: Mapping[str, Any]):
         return None
@@ -101,12 +107,17 @@ class PersonaSpeechFilter(BaseTextFilter):
         return text
 
     def _normalize_scheme_names(self, text: str) -> str:
+        language = self._active_language()
+        names = {
+            "en": ("P M Kisan", "P M Awas", "P M Mudra"),
+            "ta": ("பி எம் கிசான்", "பி எம் ஆவாஸ்", "பி எம் முத்ரா"),
+        }.get(language, ("पी एम किसान", "पी एम आवास", "पी एम मुद्रा"))
         for form in self.PM_KISAN_FORMS:
-            text = text.replace(form, "पी एम किसान")
+            text = text.replace(form, names[0])
         for form in self.PM_AWAS_FORMS:
-            text = text.replace(form, "पी एम आवास")
+            text = text.replace(form, names[1])
         for form in self.PM_MUDRA_FORMS:
-            text = text.replace(form, "पी एम मुद्रा")
+            text = text.replace(form, names[2])
         return text
 
     def _normalize_brand_name(self, text: str) -> str:

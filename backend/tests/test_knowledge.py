@@ -55,6 +55,21 @@ def test_broad_scheme_search_prefers_legacy_vector_rag(monkeypatch):
     assert "Titan" in result["source"]
 
 
+def test_explicit_language_selects_the_matching_semantic_partition(monkeypatch):
+    service = KnowledgeService()
+    seen = {}
+
+    def search(query, language):
+        seen["language"] = language
+        return [{"scheme_id": "pmay", "section_id": "overview", "text": "मराठी", "similarity": 0.9}]
+
+    monkeypatch.setattr(service._legacy_rag, "search", search)
+    result = asyncio.run(service.search_schemes("घरासाठी मदत", language="mr"))
+
+    assert seen["language"] == "mr"
+    assert result["retrieval"] == "semantic-vector-rag"
+
+
 def test_exact_named_scheme_skips_slow_semantic_lookup(monkeypatch):
     service = KnowledgeService()
     semantic = Mock(side_effect=AssertionError("exact scheme should not invoke vector RAG"))
@@ -72,11 +87,13 @@ def test_pm_awas_and_mudra_names_have_exact_curated_answers():
     service = KnowledgeService()
     awas = asyncio.run(service.search_schemes("PM Awas Yojana"))
     mudra = asyncio.run(service.search_schemes("PM Mudra Yojana"))
+    misheard_mudra = asyncio.run(service.search_schemes("योग मुद्रा योजना क्या है"))
 
     assert awas["retrieval"] == "exact-curated-scheme"
     assert "rural or urban" in awas["records"][0]["conversation_guidance"]
     assert mudra["retrieval"] == "exact-curated-scheme"
     assert "credit" in mudra["records"][0]["conversation_guidance"]
+    assert misheard_mudra["records"][0]["name"] == "Pradhan Mantri MUDRA Yojana"
 
 
 def test_mcp_server_calls_real_registered_tool():
