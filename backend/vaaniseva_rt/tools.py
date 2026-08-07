@@ -13,6 +13,18 @@ from .memory import SafeMemoryStore
 from .prompts import PERSONAS, persona_contract
 
 
+FARMER_HELPLINE_TERMS = ("farmer", "farming", "agriculture", "kisan", "crop", "mandi", "खेती", "किसान")
+HEALTH_OR_EMERGENCY_HELPLINE_TERMS = (
+    "health", "hospital", "doctor", "medicine", "illness", "disease", "swasth", "स्वास्थ्य",
+    "अस्पताल", "डॉक्टर", "दवा", "बीमारी", "ayushman", "pm-jay", "pmjay",
+    "emergency", "urgent", "danger", "accident", "suicide", "आपात", "गंभीर",
+)
+
+
+def _is_health_or_emergency_helpline_topic(topic: str) -> bool:
+    return any(term in topic.casefold() for term in HEALTH_OR_EMERGENCY_HELPLINE_TERMS)
+
+
 def build_llm_tools(
     server: MCPServer,
     memory: SafeMemoryStore,
@@ -69,9 +81,9 @@ def build_llm_tools(
     async def get_verified_helpline(params: FunctionCallParams, topic: str):
         """Get an official emergency, health, or farmer helpline."""
         lowered = topic.casefold()
-        if any(term in lowered for term in ("farmer", "farming", "agriculture", "kisan", "crop", "mandi", "खेती", "किसान")):
+        if any(term in lowered for term in FARMER_HELPLINE_TERMS):
             await activate_persona("hitesh")
-        elif not any(term in lowered for term in ("emergency", "urgent", "danger", "आपात")):
+        elif _is_health_or_emergency_helpline_topic(topic):
             await activate_persona("vidya")
         await invoke(params, "get_verified_helpline", {"topic": topic})
 

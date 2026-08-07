@@ -83,6 +83,11 @@ class PersonaSpeechFilter(BaseTextFilter):
     }
     FEMININE_REPLACEMENTS = {value: key for key, value in MASCULINE_REPLACEMENTS.items()}
     PM_KISAN_FORMS = ("PM-KISAN", "PM KISAN", "PM-Kisan", "PM Kisan", "PM किसान", "पीएम-किसान", "पीएम किसान")
+    PM_KISAN_FULL_NAME_FORMS = (
+        "PM-KISAN Samman Nidhi", "PM KISAN Samman Nidhi", "PM-Kisan Samman Nidhi",
+        "PM Kisan Samman Nidhi", "PM किसान Samman Nidhi", "पी एम किसान Samman Nidhi",
+        "पीएम किसान सम्मान निधि",
+    )
     PM_AWAS_FORMS = ("PM-AWAS", "PM AWAS", "PM-Awas", "PM Awas", "PM Awaas", "PM आवास", "पीएम आवास")
     PM_MUDRA_FORMS = ("PM-MUDRA", "PM MUDRA", "PM-Mudra", "PM Mudra", "PM मुद्रा", "पीएम मुद्रा")
     VAANISEVA_FORMS = ("VaaniSeva", "Vaaniseva", "VAANISEVA", "वाणीसेवा")
@@ -120,6 +125,24 @@ class PersonaSpeechFilter(BaseTextFilter):
             text = text.replace(form, names[2])
         return text
 
+    def _normalize_verified_scheme_facts(self, text: str) -> str:
+        """Keep curated scheme facts in one spoken language before they reach TTS.
+
+        The exact PM-KISAN record is intentionally source-faithful and contains an
+        English scheme name plus a currency symbol.  Those tokens are audible as
+        garbled syllables in otherwise Hindi speech, so convert only this verified
+        fact to natural Hindi at the final speech boundary.
+        """
+        if self._active_language() == "en":
+            return text
+        for form in self.PM_KISAN_FULL_NAME_FORMS:
+            text = text.replace(form, "पी एम किसान सम्मान निधि")
+        text = text.replace("₹6,000 प्रति वर्ष", "हर साल छह हज़ार रुपये")
+        text = text.replace("₹6,000", "छह हज़ार रुपये")
+        text = text.replace("6,000 रुपये", "छह हज़ार रुपये")
+        text = text.replace("6000 रुपये", "छह हज़ार रुपये")
+        return text
+
     def _normalize_brand_name(self, text: str) -> str:
         for form in self.VAANISEVA_FORMS:
             text = text.replace(form, "वाणी सेवा")
@@ -127,7 +150,9 @@ class PersonaSpeechFilter(BaseTextFilter):
 
     async def filter(self, text: str) -> str:
         persona = self._active_persona()
-        filtered = self._normalize_brand_name(self._normalize_scheme_names(text))
+        filtered = self._normalize_brand_name(
+            self._normalize_scheme_names(self._normalize_verified_scheme_facts(text))
+        )
         if persona == "hitesh":
             filtered = self._replace_all(filtered, self.MASCULINE_REPLACEMENTS)
         elif persona in {"arya", "vidya"}:

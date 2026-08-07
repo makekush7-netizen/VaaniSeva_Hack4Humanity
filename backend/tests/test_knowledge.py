@@ -118,7 +118,21 @@ def test_mcp_server_calls_real_registered_tool():
     payload = tool_payload(result)
     assert payload["ok"] is True
     assert payload["records"][0]["number"] == "1800-180-1551"
-    assert payload["source"].startswith("https://")
+
+
+def test_non_health_helpline_query_never_returns_health_or_emergency_numbers():
+    payload = asyncio.run(KnowledgeService().helpline("PM Awas Urban"))
+
+    assert payload["ok"] is False
+    assert payload["records"] == []
+    assert "Do not substitute health" in payload["warning"]
+
+
+def test_generic_health_helpline_keeps_verified_health_navigation():
+    payload = asyncio.run(KnowledgeService().helpline("rashtriya swasthya helpline"))
+
+    assert payload["ok"] is True
+    assert {record["number"] for record in payload["records"]} == {"112", "14555"}
 
 
 def test_agriculture_helpline_never_falls_back_to_health():

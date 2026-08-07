@@ -346,12 +346,22 @@ class KnowledgeService:
             key = "pmjay"
         elif any(word in lowered for word in ("danger", "urgent", "suicide", "accident", "emergency", "आपात", "गंभीर")):
             key = "emergency"
-        else:
+        elif any(word in lowered for word in (
+            "health", "hospital", "doctor", "medicine", "illness", "disease", "swasth", "स्वास्थ्य",
+            "अस्पताल", "डॉक्टर", "दवा", "बीमारी",
+        )):
             return self._result(
                 "Government of India official helplines",
                 [HELPLINES["emergency"], HELPLINES["pmjay"]],
                 safety="verified-navigation",
                 warning="No single generic national-health information number is stored here. Ask whether this is an emergency or an Ayushman Bharat PM-JAY query; never present 1075 as a generic health helpline.",
+            )
+        else:
+            return self._result(
+                "Government of India official helplines",
+                [],
+                safety="verified-navigation",
+                warning="No relevant verified helpline was found for this non-health topic. Do not substitute health or emergency numbers for a scheme query.",
             )
         return self._result(HELPLINES[key]["source"], [HELPLINES[key]], safety="verified-navigation")
 

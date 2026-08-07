@@ -40,6 +40,15 @@ def test_filter_normalizes_pm_kisan_for_tts_pronunciation():
     assert asyncio.run(run()) == "पी एम किसान योजना में मदद कर सकता हूँ।"
 
 
+def test_filter_makes_pm_kisan_verified_benefit_fully_hindi_for_tts():
+    text_filter = PersonaSpeechFilter(lambda: "arya", "test")
+
+    async def run():
+        return await text_filter.filter("पी एम किसान Samman Nidhi योजना योग्य परिवारों को ₹6,000 प्रति वर्ष देती है।")
+
+    assert asyncio.run(run()) == "पी एम किसान सम्मान निधि योजना योग्य परिवारों को हर साल छह हज़ार रुपये देती है।"
+
+
 def test_filter_normalizes_pm_awas_and_mudra_for_tts_pronunciation():
     text_filter = PersonaSpeechFilter(lambda: "arya", "test")
 
