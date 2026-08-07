@@ -230,10 +230,10 @@ async def local_websocket_endpoint(websocket: WebSocket):
             transport,
             WebSocketRunnerArguments(websocket=websocket),
             settings,
-            # Browser audio is amplified in the client. Require a clearer, longer
-            # utterance before it can cancel the assistant; phone VAD is unchanged.
+            # Browser audio keeps strict noise/echo filtering, but a confident
+            # speech onset interrupts immediately. Waiting for REST STT made
+            # barge-in take several seconds and felt as if the agent ignored users.
             vad_params=VADParams(confidence=0.65, start_secs=0.20, stop_secs=0.45, min_volume=0.18),
-            require_transcript_for_interruptions=True,
             use_rest_stt=True,
             audio_in_sample_rate=16000,
             audio_out_sample_rate=24000,

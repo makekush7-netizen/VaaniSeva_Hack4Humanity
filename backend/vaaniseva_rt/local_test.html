@@ -93,6 +93,7 @@ if (document.documentElement.classList.contains('embed-product')) {
 let context, stream, source, processor, mute, socket;
 let recording = [], recordingFrames = 0, pcmCarry = [];
 let nextPlay = 0, playing = [], micReady = false, agentConnected = false;
+let sessionGeneration = 0, stoppingPromise = null;
 
 function setStatus(text, kind = '') { statusEl.textContent = text; dot.className = `dot ${kind}`; }
 
@@ -189,6 +190,7 @@ async function startMic() {
 }
 
 async function startProductCall() {
+  if (stoppingPromise) await stoppingPromise;
   productButton.disabled = true;
   productButton.textContent = 'Connecting…';
   const ready = await startMic();
@@ -239,10 +241,17 @@ function playAgentPCM(buffer) {
 function connectAgent() {
   agentButton.disabled = true;
   setStatus('Connecting the real agent…', 'live');
-  socket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/local/ws`);
-  socket.binaryType = 'arraybuffer';
-  socket.onopen = () => { agentConnected = true; setStatus('Connected — listen for the greeting', 'live'); };
-  socket.onmessage = ({data}) => {
+  const generation = ++sessionGeneration;
+  const activeSocket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/local/ws`);
+  socket = activeSocket;
+  activeSocket.binaryType = 'arraybuffer';
+  activeSocket.onopen = () => {
+    if (generation !== sessionGeneration || socket !== activeSocket) return;
+    agentConnected = true;
+    setStatus('Connected — listen for the greeting', 'live');
+  };
+  activeSocket.onmessage = ({data}) => {
+    if (generation !== sessionGeneration || socket !== activeSocket) return;
     if (typeof data === 'string') {
       const event = JSON.parse(data);
       if (event.type === 'clear') { clearPlayback(); setStatus('Interrupted — listening', 'live'); }
@@ -251,25 +260,52 @@ function connectAgent() {
       setStatus('VaaniSeva is speaking — you can interrupt', 'live');
     }
   };
-  socket.onerror = () => setStatus('Agent connection failed', 'error');
-  socket.onclose = () => { agentConnected = false; if (context) setStatus('Agent disconnected; microphone check still works', 'error'); };
+  activeSocket.onerror = () => {
+    if (generation === sessionGeneration && socket === activeSocket) setStatus('Agent connection failed', 'error');
+  };
+  activeSocket.onclose = () => {
+    if (generation !== sessionGeneration || socket !== activeSocket) return;
+    agentConnected = false;
+    socket = null;
+    if (context) setStatus('Agent disconnected; microphone check still works', 'error');
+  };
 }
 
-function stopAll() {
-  agentConnected = false;
-  clearPlayback();
-  if (socket && socket.readyState === WebSocket.OPEN) socket.close();
-  if (processor) processor.disconnect();
-  if (source) source.disconnect();
-  if (stream) stream.getTracks().forEach(track => track.stop());
-  if (context) context.close();
-  socket = context = stream = source = processor = mute = null;
-  recording = []; recordingFrames = 0; pcmCarry = []; micReady = false;
-  level.style.width = '0'; db.textContent = '−∞ dB'; mic.textContent = 'No microphone selected';
-  micButton.disabled = false; micButton.textContent = '1. Start mic check';
-  productButton.disabled = false; productButton.textContent = 'Start voice conversation';
-  playButton.disabled = true; agentButton.disabled = true; stopButton.disabled = true;
-  setStatus('Stopped');
+async function stopAll() {
+  if (stoppingPromise) return stoppingPromise;
+  stoppingPromise = (async () => {
+    ++sessionGeneration;
+    agentConnected = false;
+    clearPlayback();
+
+    const oldSocket = socket, oldContext = context, oldStream = stream;
+    const oldSource = source, oldProcessor = processor, oldMute = mute;
+    socket = context = stream = source = processor = mute = null;
+
+    if (oldSocket) {
+      oldSocket.onopen = oldSocket.onmessage = oldSocket.onerror = oldSocket.onclose = null;
+      if (oldSocket.readyState === WebSocket.CONNECTING || oldSocket.readyState === WebSocket.OPEN) oldSocket.close();
+    }
+    if (oldProcessor) {
+      oldProcessor.onaudioprocess = null;
+      try { oldProcessor.disconnect(); } catch (_) {}
+    }
+    if (oldSource) try { oldSource.disconnect(); } catch (_) {}
+    if (oldMute) try { oldMute.disconnect(); } catch (_) {}
+    if (oldStream) oldStream.getTracks().forEach(track => track.stop());
+    if (oldContext && oldContext.state !== 'closed') {
+      try { await oldContext.close(); } catch (_) {}
+    }
+
+    nextPlay = 0; playing = [];
+    recording = []; recordingFrames = 0; pcmCarry = []; micReady = false;
+    level.style.width = '0'; db.textContent = '−∞ dB'; mic.textContent = 'No microphone selected';
+    micButton.disabled = false; micButton.textContent = '1. Start mic check';
+    productButton.disabled = false; productButton.textContent = 'Start voice conversation';
+    playButton.disabled = true; agentButton.disabled = true; stopButton.disabled = true;
+    setStatus('Stopped — ready for a fresh conversation');
+  })();
+  try { await stoppingPromise; } finally { stoppingPromise = null; }
 }
 
 micButton.addEventListener('click', startMic);

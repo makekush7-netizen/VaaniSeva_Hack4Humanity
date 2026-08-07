@@ -25,7 +25,7 @@ MANDI_TERMS = {
 SCHEMES = [
     {
         "name": "PM-KISAN Samman Nidhi",
-        "aliases": ["PM Kisan", "किसान सम्मान निधि", "किसान की सालाना सहायता"],
+        "aliases": ["PM Kisan", "पीएम किसान", "किसान सम्मान निधि", "किसान की सालाना सहायता"],
         "helps": "eligible landholding farmer families, subject to official exclusion categories",
         "benefit": "₹6,000 per year paid by direct benefit transfer in three equal instalments",
         "next_step": "eligibility and payment status can be checked through the PM-KISAN helpdesk or a nearby Common Service Centre",
@@ -33,6 +33,7 @@ SCHEMES = [
         "domain": "agriculture income support farmer",
         "scope": "central",
         "verified_on": "2026-08-04",
+        "conversation_guidance": "After the short explanation, ask exactly one specific question: whether the caller needs eligibility, registration, or payment-status help, and which state they are in.",
     },
     {
         "name": "Pradhan Mantri Fasal Bima Yojana",
@@ -79,6 +80,18 @@ SCHEMES = [
         "verified_on": "2026-08-04",
     },
     {
+        "name": "Pradhan Mantri Awas Yojana",
+        "aliases": ["PMAY", "PM Awas", "PM Awaas", "पीएम आवास", "प्रधानमंत्री आवास"],
+        "helps": "eligible households needing housing support, under different current rural and urban scheme rules",
+        "benefit": "housing assistance may support a rural pucca house or eligible urban construction, purchase, rental, or interest-subsidy routes, depending on location and current rules",
+        "next_step": "first identify whether the home is in a rural or urban area and the state, then check the matching official scheme route",
+        "source": "PMAY-G Ministry of Rural Development and PMAY-U 2.0 Ministry of Housing and Urban Affairs",
+        "domain": "rural urban housing home poor family",
+        "scope": "central with state and local implementation",
+        "verified_on": "2026-08-08",
+        "conversation_guidance": "Explain that housing support differs between rural and urban schemes, then ask exactly one question: is the caller's home in a rural or urban area, and which state?",
+    },
+    {
         "name": "Pradhan Mantri Awaas Yojana Gramin",
         "aliases": ["PMAY-G", "ग्रामीण आवास", "घर योजना"],
         "helps": "eligible rural households identified under current housing-assistance rules",
@@ -88,6 +101,19 @@ SCHEMES = [
         "domain": "rural housing home poor family village",
         "scope": "central",
         "verified_on": "2026-08-04",
+        "conversation_guidance": "After the overview, ask exactly one question: which state and village or Gram Panchayat should be checked for current list or sanction guidance?",
+    },
+    {
+        "name": "Pradhan Mantri MUDRA Yojana",
+        "aliases": ["PMMY", "PM Mudra", "पीएम मुद्रा", "प्रधानमंत्री मुद्रा", "मुद्रा लोन"],
+        "helps": "micro enterprises needing institutional credit for income-generating manufacturing, trading, services, or eligible allied activities",
+        "benefit": "collateral-free institutional credit through member lending institutions, with Shishu, Kishor, Tarun, and conditional Tarun Plus categories under current rules",
+        "next_step": "ask a participating bank, NBFC, or microfinance institution which category fits the business and what documents it requires",
+        "source": "https://financialservices.gov.in/pradhan-mantri-mudra-yojana-pmmy",
+        "domain": "micro enterprise small business credit loan shopkeeper artisan",
+        "scope": "central",
+        "verified_on": "2026-08-08",
+        "conversation_guidance": "After the overview, ask exactly one question: is this a new or existing business, and roughly how much credit is needed? Do not promise approval or an interest rate.",
     },
     {
         "name": "Pradhan Mantri Ujjwala Yojana",
@@ -128,6 +154,23 @@ def _scheme_score(item: dict[str, Any], query: str, state: str = "") -> int:
     if state and state.casefold() in searchable.casefold():
         score += 2
     return score
+
+
+def _normalise_scheme_phrase(value: str) -> str:
+    return " ".join(re.findall(r"[\w\u0900-\u097f]+", value.casefold()))
+
+
+def _exact_scheme_match(query: str) -> dict[str, Any] | None:
+    """Resolve an explicitly named scheme without paying semantic-RAG latency."""
+    requested = _normalise_scheme_phrase(query)
+    if not requested:
+        return None
+    for item in SCHEMES:
+        for name in [item["name"], *item.get("aliases", [])]:
+            candidate = _normalise_scheme_phrase(name)
+            if candidate and candidate in requested:
+                return item
+    return None
 
 HELPLINES = {
     "emergency": {"number": "112", "purpose": "pan-India emergency response", "source": "https://112.gov.in/"},
@@ -241,6 +284,15 @@ class KnowledgeService:
         self._legacy_rag = LegacyVectorRAG(rag_region, rag_vectors_table, rag_embedding_model)
 
     async def search_schemes(self, query: str, state: str = "") -> dict[str, Any]:
+        exact = _exact_scheme_match(query)
+        if exact:
+            return self._result(
+                "VaaniSeva verified snapshot of the named official Government of India scheme source",
+                [dict(exact)],
+                geography=state or "India",
+                retrieval="exact-curated-scheme",
+                warning="Scheme rules can change. Give the useful overview and ask the record's one specific follow-up question.",
+            )
         language = "hi" if re.search(r"[\u0900-\u097f]", query) else "en"
         try:
             semantic = await asyncio.to_thread(self._legacy_rag.search, query, language)
@@ -270,14 +322,7 @@ class KnowledgeService:
             semantic["records"] = semantic["records"][:2]
             semantic["eligibility_note"] = "Guidance only. Do not infer approval; explain a voice-accessible official next step."
             return semantic
-        requested = scheme_name.casefold()
-        match = next(
-            (
-                item for item in SCHEMES
-                if any(requested in name.casefold() or name.casefold() in requested for name in [item["name"], *item.get("aliases", [])])
-            ),
-            None,
-        )
+        match = _exact_scheme_match(scheme_name)
         if not match:
             return self._result("official scheme directory", [], warning="Scheme not found in the curated demo registry; do not infer eligibility.")
         item = dict(match)

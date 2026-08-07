@@ -13,6 +13,15 @@ def test_health_reports_only_variable_names():
     assert set(body) == {"status", "service", "version", "missing_configuration"}
 
 
+def test_local_page_fully_tears_down_before_a_fresh_connection():
+    html = TestClient(app).get("/local").text
+    assert "sessionGeneration" in html
+    assert "oldSocket.onopen = oldSocket.onmessage = oldSocket.onerror = oldSocket.onclose = null" in html
+    assert "oldProcessor.onaudioprocess = null" in html
+    assert "await oldContext.close()" in html
+    assert "Stopped — ready for a fresh conversation" in html
+
+
 def test_callback_is_disabled_by_default(monkeypatch):
     monkeypatch.setenv("CALLBACK_ENABLED", "false")
     response = TestClient(app).post("/api/calls/callback", json={"phone_number": "+919876543210"})

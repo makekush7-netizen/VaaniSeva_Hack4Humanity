@@ -33,8 +33,6 @@ from pipecat.services.tts_service import TextAggregationMode
 from pipecat.transcriptions.language import Language
 from pipecat.transports.base_transport import BaseTransport
 from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams
-from pipecat.turns.user_start import TranscriptionUserTurnStartStrategy, VADUserTurnStartStrategy
-from pipecat.turns.user_turn_strategies import UserTurnStrategies
 from pipecat.workers.runner import WorkerRunner
 
 from .clips import ClipLibrary
@@ -52,18 +50,6 @@ TOOL_PROGRESS_SPEECH = {
     "get_scheme_eligibility": "एक पल, मैं पात्रता की जानकारी जाँच रही हूँ।",
     "get_mandi_price": "एक पल, मैं मंडी की ताज़ा जानकारी जाँच रहा हूँ।",
 }
-
-
-def browser_turn_strategies() -> UserTurnStrategies:
-    """Only a confirmed transcript can interrupt browser playback.
-
-    Browser VAD still segments audio for REST STT, but it no longer clears a
-    response merely because speaker echo or room noise crosses the VAD threshold.
-    """
-    return UserTurnStrategies(start=[
-        VADUserTurnStartStrategy(enable_interruptions=False),
-        TranscriptionUserTurnStartStrategy(enable_interruptions=True),
-    ])
 
 
 def _caller_number(runner_args: RunnerArguments) -> str:
@@ -104,7 +90,6 @@ async def run_bot(
     settings: Settings,
     *,
     vad_params: VADParams | None = None,
-    require_transcript_for_interruptions: bool = False,
     use_rest_stt: bool = False,
     audio_in_sample_rate: int = 8000,
     audio_out_sample_rate: int = 8000,
@@ -248,7 +233,6 @@ async def run_bot(
         context,
         user_params=LLMUserAggregatorParams(
             vad_analyzer=SileroVADAnalyzer(params=vad_params) if vad_params else SileroVADAnalyzer(),
-            user_turn_strategies=browser_turn_strategies() if require_transcript_for_interruptions else None,
         ),
     )
     pipeline = Pipeline(

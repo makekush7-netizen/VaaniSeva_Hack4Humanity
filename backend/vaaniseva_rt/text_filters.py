@@ -82,7 +82,9 @@ class PersonaSpeechFilter(BaseTextFilter):
         "जांच रही हूं": "जांच रहा हूं",
     }
     FEMININE_REPLACEMENTS = {value: key for key, value in MASCULINE_REPLACEMENTS.items()}
-    PM_KISAN_FORMS = ("PM-KISAN", "PM KISAN", "PM-Kisan", "PM Kisan", "पीएम-किसान", "पीएम किसान")
+    PM_KISAN_FORMS = ("PM-KISAN", "PM KISAN", "PM-Kisan", "PM Kisan", "PM किसान", "पीएम-किसान", "पीएम किसान")
+    PM_AWAS_FORMS = ("PM-AWAS", "PM AWAS", "PM-Awas", "PM Awas", "PM Awaas", "PM आवास", "पीएम आवास")
+    PM_MUDRA_FORMS = ("PM-MUDRA", "PM MUDRA", "PM-Mudra", "PM Mudra", "PM मुद्रा", "पीएम मुद्रा")
     VAANISEVA_FORMS = ("VaaniSeva", "Vaaniseva", "VAANISEVA", "वाणीसेवा")
 
     def __init__(self, active_persona: Callable[[], str], session_id: str = ""):
@@ -101,6 +103,10 @@ class PersonaSpeechFilter(BaseTextFilter):
     def _normalize_scheme_names(self, text: str) -> str:
         for form in self.PM_KISAN_FORMS:
             text = text.replace(form, "पी एम किसान")
+        for form in self.PM_AWAS_FORMS:
+            text = text.replace(form, "पी एम आवास")
+        for form in self.PM_MUDRA_FORMS:
+            text = text.replace(form, "पी एम मुद्रा")
         return text
 
     def _normalize_brand_name(self, text: str) -> str:

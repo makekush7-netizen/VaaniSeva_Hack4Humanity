@@ -43,16 +43,40 @@ def test_scheme_result_has_source_and_freshness():
     assert any("farmer" in item["helps"] for item in result["records"])
 
 
-def test_scheme_search_prefers_legacy_vector_rag(monkeypatch):
+def test_broad_scheme_search_prefers_legacy_vector_rag(monkeypatch):
     service = KnowledgeService()
     monkeypatch.setattr(
         service._legacy_rag,
         "search",
         lambda query, language: [{"scheme_id": "pm-kisan", "section_id": "overview", "text": "verified", "similarity": 0.91}],
     )
-    result = asyncio.run(service.search_schemes("PM Kisan"))
+    result = asyncio.run(service.search_schemes("income support for a landholding farmer"))
     assert result["retrieval"] == "semantic-vector-rag"
     assert "Titan" in result["source"]
+
+
+def test_exact_named_scheme_skips_slow_semantic_lookup(monkeypatch):
+    service = KnowledgeService()
+    semantic = Mock(side_effect=AssertionError("exact scheme should not invoke vector RAG"))
+    monkeypatch.setattr(service._legacy_rag, "search", semantic)
+
+    result = asyncio.run(service.search_schemes("मुझे PM Kisan योजना के बारे में बताओ"))
+
+    assert result["retrieval"] == "exact-curated-scheme"
+    assert result["records"][0]["name"] == "PM-KISAN Samman Nidhi"
+    assert "conversation_guidance" in result["records"][0]
+    semantic.assert_not_called()
+
+
+def test_pm_awas_and_mudra_names_have_exact_curated_answers():
+    service = KnowledgeService()
+    awas = asyncio.run(service.search_schemes("PM Awas Yojana"))
+    mudra = asyncio.run(service.search_schemes("PM Mudra Yojana"))
+
+    assert awas["retrieval"] == "exact-curated-scheme"
+    assert "rural or urban" in awas["records"][0]["conversation_guidance"]
+    assert mudra["retrieval"] == "exact-curated-scheme"
+    assert "credit" in mudra["records"][0]["conversation_guidance"]
 
 
 def test_mcp_server_calls_real_registered_tool():
