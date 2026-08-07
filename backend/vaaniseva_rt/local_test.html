@@ -210,6 +210,12 @@ async function startMic() {
 }
 
 async function startProductCall() {
+  if (stream && !agentConnected) {
+    productButton.disabled = true;
+    connectAgent();
+    productButton.textContent = 'Conversation connected';
+    return;
+  }
   productButton.disabled = true;
   productButton.textContent = 'Connecting…';
   const ready = await startMic();
@@ -218,8 +224,10 @@ async function startProductCall() {
     productButton.textContent = 'Try microphone again';
     return;
   }
-  connectAgent();
-  productButton.textContent = 'Conversation connected';
+  productButton.disabled = false;
+  productButton.textContent = 'Connect voice conversation';
+  setStatus('Microphone ready. Choose a device if needed, then connect the agent.', 'live');
+  return;
 }
 
 function playRecording() {
@@ -300,8 +308,7 @@ productButton.addEventListener('click', startProductCall);
 stopButton.addEventListener('click', stopAll);
 micSelect.addEventListener('change', () => {
   selectedDeviceId = micSelect.value;
-  if (agentConnected) setStatus('Microphone selected for the next conversation. Press Stop, then start again.', 'live');
-  else setStatus('Microphone selected. Press Start voice conversation.', 'live');
+  setStatus('Microphone selected for the next start. Press Stop, then start again.', 'live');
 });
 </script>
 </body>
