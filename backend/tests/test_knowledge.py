@@ -159,6 +159,15 @@ def test_mandi_never_invents_without_api_key():
     assert "no price" in result["warning"].lower()
 
 
+def test_agriculture_information_routes_pests_to_safe_crop_follow_up():
+    result = asyncio.run(KnowledgeService().agriculture_information("khet se keede kaise hataye"))
+
+    assert result["ok"] is True
+    assert "crop" in result["records"][0]["required_follow_up"].lower()
+    assert "1800-180-1551" in result["records"][0]["expert_next_step"]
+    assert "pesticide" in result["warning"].lower()
+
+
 def test_urgent_health_escalates_to_112():
     result = asyncio.run(KnowledgeService().health_information("severe chest pain and cannot breathe"))
     assert result["records"][0]["urgent"] is True

@@ -11,6 +11,7 @@ from pipecat.frames.frames import (
     InterruptionFrame,
     OutputTransportMessageFrame,
     OutputTransportMessageUrgentFrame,
+    TranscriptionFrame,
 )
 from pipecat.serializers.base_serializer import FrameSerializer
 
@@ -27,6 +28,12 @@ class LocalPCMFrameSerializer(FrameSerializer):
             return frame.audio
         if isinstance(frame, InterruptionFrame):
             return json.dumps({"type": "clear"})
+        if isinstance(frame, TranscriptionFrame) and frame.text.strip():
+            return json.dumps({
+                "type": "transcript",
+                "text": frame.text.strip(),
+                "final": frame.finalized,
+            }, ensure_ascii=False)
         if isinstance(frame, (EndFrame, CancelFrame)):
             return json.dumps({"type": "ended"})
         if isinstance(frame, (OutputTransportMessageFrame, OutputTransportMessageUrgentFrame)):

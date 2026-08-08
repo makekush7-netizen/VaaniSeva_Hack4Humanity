@@ -20,6 +20,9 @@ def test_local_page_fully_tears_down_before_a_fresh_connection():
     assert "oldProcessor.onaudioprocess = null" in html
     assert "await oldContext.close()" in html
     assert "Stopped — ready for a fresh conversation" in html
+    assert "microphoneUploadBlocked = true" in html
+    assert "greetingGuardTimer" in html
+    assert "Heard: ${event.text}" in html
 
 
 def test_callback_is_disabled_by_default(monkeypatch):

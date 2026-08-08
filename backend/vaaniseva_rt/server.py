@@ -233,7 +233,10 @@ async def local_websocket_endpoint(websocket: WebSocket):
             # Browser audio keeps strict noise/echo filtering, but a confident
             # speech onset interrupts immediately. Waiting for REST STT made
             # barge-in take several seconds and felt as if the agent ignored users.
-            vad_params=VADParams(confidence=0.65, start_secs=0.20, stop_secs=0.45, min_volume=0.18),
+            # A short greeting-only client guard absorbs startup echo. Once it
+            # opens, keep barge-in responsive and finish turns without robotic
+            # half-second pauses, while retaining a modest room-noise floor.
+            vad_params=VADParams(confidence=0.62, start_secs=0.12, stop_secs=0.32, min_volume=0.20),
             use_rest_stt=True,
             audio_in_sample_rate=16000,
             audio_out_sample_rate=24000,

@@ -6,7 +6,7 @@ from typing import Any, Awaitable, Callable
 from loguru import logger
 from mcp.server.mcpserver import MCPServer
 from pipecat.frames.frames import EndFrame, TTSSpeakFrame
-from pipecat.services.llm_service import FunctionCallParams
+from pipecat.services.llm_service import FunctionCallParams, FunctionCallResultProperties
 
 from .knowledge import tool_payload
 from .memory import SafeMemoryStore
@@ -23,6 +23,41 @@ HEALTH_OR_EMERGENCY_HELPLINE_TERMS = (
 
 def _is_health_or_emergency_helpline_topic(topic: str) -> bool:
     return any(term in topic.casefold() for term in HEALTH_OR_EMERGENCY_HELPLINE_TERMS)
+
+
+EXACT_SCHEME_SPEECH = {
+    "PM-KISAN Samman Nidhi": {
+        "hi": "पी एम किसान सम्मान निधि पात्र भूमिधारक किसान परिवारों के लिए है। इसमें हर साल छह हज़ार रुपये, तीन बराबर किस्तों में सीधे खाते में दिए जाते हैं। आपको पात्रता, पंजीकरण या किस्त की स्थिति में से किसकी मदद चाहिए, और आपका राज्य कौन सा है?",
+        "mr": "पी एम किसान सन्मान निधी पात्र जमीनधारक शेतकरी कुटुंबांसाठी आहे. दरवर्षी सहा हजार रुपये तीन समान हप्त्यांत थेट खात्यात दिले जातात. तुम्हाला पात्रता, नोंदणी की हप्त्याची स्थिती जाणून घ्यायची आहे, आणि तुमचे राज्य कोणते?",
+        "ta": "பி எம் கிசான் சம்மான் நிதி தகுதியான நிலம் வைத்துள்ள விவசாயக் குடும்பங்களுக்கான திட்டம். ஆண்டுக்கு ஆறாயிரம் ரூபாய் மூன்று சம தவணைகளாக நேரடியாக வங்கிக் கணக்கில் வழங்கப்படுகிறது. தகுதி, பதிவு, அல்லது பணநிலை எது வேண்டும், உங்கள் மாநிலம் எது?",
+        "en": "P M Kisan Samman Nidhi supports eligible landholding farmer families. It pays six thousand rupees per year by direct transfer in three equal instalments. Do you need help with eligibility, registration, or payment status, and which state are you in?",
+    },
+    "Pradhan Mantri Awas Yojana": {
+        "hi": "पी एम आवास योजना में ग्रामीण और शहरी परिवारों के लिए अलग नियम हैं। पात्र परिवार को पक्का घर बनाने, खरीदने या दूसरी मान्य आवास सहायता मिल सकती है। आपका घर ग्रामीण क्षेत्र में है या शहरी, और आपका राज्य कौन सा है?",
+        "mr": "पी एम आवास योजनेत ग्रामीण आणि शहरी कुटुंबांसाठी वेगळे नियम आहेत. पात्र कुटुंबाला पक्के घर बांधण्यासाठी, खरेदीसाठी किंवा इतर मान्य घरकुल मदत मिळू शकते. तुमचे घर ग्रामीण भागात आहे की शहरी, आणि राज्य कोणते?",
+        "ta": "பி எம் ஆவாஸ் திட்டத்தில் கிராமப்புறம் மற்றும் நகர்ப்புற குடும்பங்களுக்கு விதிகள் வேறுபடும். தகுதியான குடும்பங்களுக்கு வீடு கட்ட, வாங்க, அல்லது அங்கீகரிக்கப்பட்ட வீட்டு உதவி கிடைக்கலாம். உங்கள் வீடு கிராமப்புறத்திலா நகர்ப்புறத்திலா, எந்த மாநிலம்?",
+        "en": "P M Awas Yojana has different rules for rural and urban households. Eligible families may receive approved support to build or obtain a permanent home. Is your home in a rural or urban area, and which state are you in?",
+    },
+    "Pradhan Mantri MUDRA Yojana": {
+        "hi": "पी एम मुद्रा योजना छोटे कारोबारों को बिना जमानत संस्थागत ऋण पाने में मदद करती है। ऋण की श्रेणी कारोबार की जरूरत और मौजूदा नियमों पर निर्भर करती है। आपका कारोबार नया है या पहले से चल रहा है, और लगभग कितनी राशि चाहिए?",
+        "mr": "पी एम मुद्रा योजना लहान व्यवसायांना तारणाशिवाय संस्थात्मक कर्ज मिळवण्यास मदत करते. कर्जाची श्रेणी व्यवसायाची गरज आणि सध्याच्या नियमांवर ठरते. तुमचा व्यवसाय नवीन आहे की सुरू असलेला, आणि साधारण किती रक्कम हवी आहे?",
+        "ta": "பி எம் முத்ரா திட்டம் சிறு தொழில்களுக்கு அடமானமில்லா நிறுவனக் கடன் பெற உதவுகிறது. கடன் வகை தொழிலின் தேவையும் தற்போதைய விதிகளையும் பொறுத்தது. உங்கள் தொழில் புதியதா ஏற்கனவே இயங்குகிறதா, சுமார் எவ்வளவு தொகை வேண்டும்?",
+        "en": "P M Mudra Yojana helps micro businesses access collateral-free institutional credit. The category depends on the business need and current lender rules. Is this a new or existing business, and roughly how much credit do you need?",
+    },
+}
+
+
+def exact_scheme_spoken_response(payload: dict[str, Any], language: str) -> str | None:
+    """Return the application-owned demo response for a verified exact record."""
+    if payload.get("retrieval") != "exact-curated-scheme":
+        return None
+    records = payload.get("records")
+    if not isinstance(records, list) or len(records) != 1 or not isinstance(records[0], dict):
+        return None
+    choices = EXACT_SCHEME_SPEECH.get(str(records[0].get("name", "")))
+    if not choices:
+        return None
+    return choices.get(language, choices["hi"])
 
 
 def build_llm_tools(
@@ -49,7 +84,7 @@ def build_llm_tools(
             logger.bind(persona=key, routing="intent").info("persona_switched")
         return contract
 
-    async def invoke(params: FunctionCallParams, name: str, arguments: dict[str, Any]) -> None:
+    async def fetch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         result = await server.call_tool(name, arguments)
         payload = tool_payload(result)
         records = payload.get("records") if isinstance(payload.get("records"), list) else []
@@ -62,14 +97,37 @@ def build_llm_tools(
             warning=payload.get("warning", ""),
             records=record_names,
         ).info("grounded_tool_completed")
+        return payload
+
+    async def invoke(params: FunctionCallParams, name: str, arguments: dict[str, Any]) -> None:
+        payload = await fetch(name, arguments)
         await params.result_callback(payload)
 
     async def search_government_schemes(params: FunctionCallParams, query: str, state: str = ""):
         """Search official-source government schemes relevant to a person's need."""
         await activate_persona("arya")
-        await invoke(params, "search_government_schemes", {
+        payload = await fetch("search_government_schemes", {
             "query": query, "state": state, "language": language_state["active"]
         })
+        spoken = exact_scheme_spoken_response(payload, language_state["active"])
+        if spoken:
+            payload = {
+                **payload,
+                "spoken_by_application": True,
+                "instruction": "The application already spoke the complete grounded answer. Do not generate another reply.",
+            }
+            await params.result_callback(
+                payload,
+                properties=FunctionCallResultProperties(run_llm=False),
+            )
+            await params.pipeline_worker.queue_frames([
+                TTSSpeakFrame(spoken, append_to_context=True)
+            ])
+            logger.bind(
+                persona="arya", language=language_state["active"], query=query
+            ).info("exact_scheme_spoken_deterministically")
+            return
+        await params.result_callback(payload)
 
     async def get_scheme_eligibility(params: FunctionCallParams, scheme_name: str, state: str = ""):
         """Check eligibility guidance for a named scheme before stating any rule."""
@@ -92,10 +150,15 @@ def build_llm_tools(
         await activate_persona("vidya")
         await invoke(params, "search_health_information", {"query": query})
 
-    async def get_mandi_price(params: FunctionCallParams, commodity: str, state: str = "", district: str = ""):
+    async def search_agriculture_information(params: FunctionCallParams, query: str):
+        """Get safe crop, pest, disease, and cultivation guidance before answering."""
+        await activate_persona("hitesh")
+        await invoke(params, "search_agriculture_information", {"query": query})
+
+    async def get_mandi_price(params: FunctionCallParams, commodity: str, state: str = "", district: str = "", market: str = ""):
         """Get sourced recent mandi observations; never guess if records are absent."""
         await activate_persona("hitesh")
-        await invoke(params, "get_mandi_price", {"commodity": commodity, "state": state, "district": district})
+        await invoke(params, "get_mandi_price", {"commodity": commodity, "state": state, "district": district, "market": market})
 
     async def switch_persona(params: FunctionCallParams, persona: str):
         """Switch this call to Arya, Hitesh, or Vidya when the caller asks for that agent."""
@@ -164,4 +227,4 @@ def build_llm_tools(
         await asyncio.to_thread(memory.forget, caller_number)
         await params.result_callback({"ok": True, "forgotten": True})
 
-    return [switch_persona, end_call, search_government_schemes, get_scheme_eligibility, get_verified_helpline, search_health_information, get_mandi_price, remember_caller_preference, forget_caller_memory]
+    return [switch_persona, end_call, search_government_schemes, get_scheme_eligibility, get_verified_helpline, search_health_information, search_agriculture_information, get_mandi_price, remember_caller_preference, forget_caller_memory]

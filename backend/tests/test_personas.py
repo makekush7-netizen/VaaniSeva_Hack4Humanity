@@ -61,6 +61,11 @@ def test_explicit_language_is_authoritative_in_system_instruction():
     assert "do not apologize or refuse" in instruction
 
 
+def test_prompt_routes_crop_pests_through_hitesh_grounding():
+    assert "search_agriculture_information" in SYSTEM_PROMPT
+    assert "crop pests" in SYSTEM_PROMPT
+
+
 def test_arya_and_vidya_use_the_corrected_native_voice_assignments():
     assert persona_contract("arya")["voice"] == "vidya"
     assert persona_contract("vidya")["voice"] == "arya"

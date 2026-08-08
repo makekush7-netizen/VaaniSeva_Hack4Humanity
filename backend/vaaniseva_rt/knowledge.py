@@ -374,21 +374,43 @@ class KnowledgeService:
         }
         return self._result("https://www.mohfw.gov.in/", [guidance], safety="urgent-escalation" if urgent else "general-guidance")
 
-    async def mandi_price(self, commodity: str, state: str = "", district: str = "") -> dict[str, Any]:
+    async def agriculture_information(self, query: str) -> dict[str, Any]:
+        guidance = {
+            "scope": "safe integrated-pest-management navigation; no pesticide product or dosage recommendation without crop, pest, and local expert confirmation",
+            "first_steps": [
+                "Identify the crop, affected plant part, visible insect or symptom, and how much of the field is affected.",
+                "Separate or remove badly affected plant material where practical and keep the field and tools clean.",
+                "Use crop-appropriate monitoring, traps, or other non-chemical controls only after identifying the pest.",
+            ],
+            "expert_next_step": "For crop-specific guidance in the caller's language, call the Kisan Call Centre at 1800-180-1551 or contact the nearest Krishi Vigyan Kendra.",
+            "required_follow_up": "Ask one question at a time, starting with which crop and what visible insect or symptom is present.",
+            "query": query,
+        }
+        return self._result(
+            "Government of India Kisan Call Centre and Integrated Pest Management extension network",
+            [guidance],
+            safety="verified-agriculture-navigation",
+            warning="Do not name a pesticide or dosage until the crop and pest are reliably identified and local official guidance is available.",
+        )
+
+    async def mandi_price(self, commodity: str, state: str = "", district: str = "", market: str = "") -> dict[str, Any]:
         commodity = MANDI_TERMS.get(commodity.strip(), commodity.strip())
         state = MANDI_TERMS.get(state.strip(), state.strip())
         district = MANDI_TERMS.get(district.strip(), district.strip())
-        cache_key = f"{commodity}|{state}|{district}".lower()
+        market = MANDI_TERMS.get(market.strip(), market.strip())
+        cache_key = f"{commodity}|{state}|{district}|{market}".lower()
         cached = self._cache.get(cache_key)
         if cached and cached[0] > time.monotonic():
             return {**cached[1], "cache": "hit"}
         if not self.data_gov_api_key:
             return self._result(DATA_GOV_MANDI_RESOURCE, [], warning="DATA_GOV_API_KEY is unavailable; no price may be quoted.")
-        params = {"api-key": self.data_gov_api_key, "format": "json", "limit": "5", "filters[commodity]": commodity}
+        params = {"api-key": self.data_gov_api_key, "format": "json", "limit": "20", "filters[commodity]": commodity}
         if state:
             params["filters[state]"] = state
         if district:
             params["filters[district]"] = district
+        if market:
+            params["filters[market]"] = market
         try:
             timeout = aiohttp.ClientTimeout(total=2.5)
             # data.gov.in silently stalls the default Python/aiohttp user agent from
@@ -403,7 +425,16 @@ class KnowledgeService:
                 async with session.get(DATA_GOV_MANDI_RESOURCE, params=params) as response:
                     response.raise_for_status()
                     records = (await response.json()).get("records", [])
-            result = self._result(DATA_GOV_MANDI_RESOURCE, records, geography=", ".join(filter(None, (district, state))) or "India", warning="Prices are reported market observations, not a guaranteed selling price.")
+            result = self._result(
+                DATA_GOV_MANDI_RESOURCE,
+                records,
+                geography=", ".join(filter(None, (market, district, state))) or "India",
+                warning=(
+                    "No matching government mandi observations were returned for the requested location; ask for the district or nearest mandi and do not substitute another city."
+                    if not records else
+                    "Prices are reported market observations, not a guaranteed selling price."
+                ),
+            )
             self._cache[cache_key] = (time.monotonic() + 300, result)
             return result
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
@@ -438,9 +469,14 @@ def create_mcp_server(service: KnowledgeService) -> MCPServer:
         return await service.health_information(query)
 
     @server.tool()
-    async def get_mandi_price(commodity: str, state: str = "", district: str = "") -> dict[str, Any]:
+    async def search_agriculture_information(query: str) -> dict[str, Any]:
+        """Return safe crop and pest navigation and a local-language expert next step."""
+        return await service.agriculture_information(query)
+
+    @server.tool()
+    async def get_mandi_price(commodity: str, state: str = "", district: str = "", market: str = "") -> dict[str, Any]:
         """Fetch recent government mandi observations, with freshness and source."""
-        return await service.mandi_price(commodity, state, district)
+        return await service.mandi_price(commodity, state, district, market)
 
     return server
 

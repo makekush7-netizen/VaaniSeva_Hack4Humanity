@@ -1,7 +1,7 @@
 import json
 import asyncio
 
-from pipecat.frames.frames import InputAudioRawFrame, InterruptionFrame, OutputAudioRawFrame
+from pipecat.frames.frames import InputAudioRawFrame, InterruptionFrame, OutputAudioRawFrame, TranscriptionFrame
 
 from vaaniseva_rt.local_serializer import LocalPCMFrameSerializer
 
@@ -23,3 +23,12 @@ def test_local_serializer_maps_interruption_to_clear_event():
     serializer = LocalPCMFrameSerializer()
     message = json.loads(asyncio.run(serializer.serialize(InterruptionFrame())))
     assert message == {"type": "clear"}
+
+
+def test_local_serializer_exposes_final_transcript_for_demo_debugging():
+    serializer = LocalPCMFrameSerializer()
+    frame = TranscriptionFrame("पी एम किसान", "caller", "now", finalized=True)
+
+    message = json.loads(asyncio.run(serializer.serialize(frame)))
+
+    assert message == {"type": "transcript", "text": "पी एम किसान", "final": True}

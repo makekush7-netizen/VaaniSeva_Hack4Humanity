@@ -13,6 +13,7 @@
     h1 { margin: 8px 0 10px; font-size: clamp(32px,7vw,52px); line-height: 1; }
     p, small { color: #9fbbb4; line-height: 1.55; }
     .status { margin: 24px 0 16px; padding: 18px; border-radius: 16px; background: #0b201c; display: flex; gap: 12px; align-items: center; }
+    .transcript { min-height: 20px; margin: -6px 0 14px; color: #b9d8cf; font-size: 13px; }
     .dot { width: 12px; height: 12px; flex: 0 0 auto; border-radius: 50%; background: #71827d; box-shadow: 0 0 0 7px #71827d22; }
     .dot.live { background: #52e0ad; box-shadow: 0 0 0 7px #52e0ad22; }
     .dot.error { background: #ff6d75; box-shadow: 0 0 0 7px #ff6d7522; }
@@ -31,6 +32,7 @@
     .embed h1 { margin-top: 6px; font-size: 30px; }
     .embed p { margin: 8px 0; font-size: 12px; }
     .embed .status { margin: 14px 0 10px; padding: 11px; font-size: 12px; }
+    .embed .transcript { margin: -3px 0 9px; font-size: 11px; }
     .embed .meter { height: 8px; margin: 10px 0 6px; }
     .embed .readout { margin-bottom: 12px; font-size: 10px; }
     .embed .buttons { grid-template-columns: 1fr; gap: 7px; }
@@ -58,6 +60,7 @@
   <h1>Talk to VaaniSeva</h1>
   <p>First prove the microphone locally. This stage makes no AI request. Once the meter reacts, play back the captured sample, then connect the agent.</p>
   <div class="status"><span id="dot" class="dot"></span><span id="status">Step 1 — start the microphone check</span></div>
+  <div id="transcript" class="transcript" aria-live="polite"></div>
   <div class="meter"><i id="level"></i></div>
   <div class="readout"><span id="mic">No microphone selected</span><span id="db">−∞ dB</span></div>
   <div class="buttons">
@@ -78,6 +81,7 @@ const agentButton = document.querySelector('#agentButton');
 const productButton = document.querySelector('#productButton');
 const stopButton = document.querySelector('#stopButton');
 const statusEl = document.querySelector('#status');
+const transcriptEl = document.querySelector('#transcript');
 const dot = document.querySelector('#dot');
 const level = document.querySelector('#level');
 const mic = document.querySelector('#mic');
@@ -94,6 +98,8 @@ let context, stream, source, processor, mute, socket;
 let recording = [], recordingFrames = 0, pcmCarry = [];
 let nextPlay = 0, playing = [], micReady = false, agentConnected = false;
 let sessionGeneration = 0, stoppingPromise = null;
+let greetingAudioSeen = false, microphoneUploadBlocked = false;
+let greetingGuardTimer = null, greetingFallbackTimer = null;
 
 function setStatus(text, kind = '') { statusEl.textContent = text; dot.className = `dot ${kind}`; }
 
@@ -130,7 +136,7 @@ function downsample(samples, inputRate) {
 }
 
 function sendPCM(samples) {
-  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  if (!socket || socket.readyState !== WebSocket.OPEN || microphoneUploadBlocked) return;
   pcmCarry.push(...downsample(samples, context.sampleRate));
   while (pcmCarry.length >= 160) {
     const packet = new Int16Array(pcmCarry.splice(0, 160));
@@ -221,6 +227,11 @@ function playRecording() {
 
 function playAgentPCM(buffer) {
   if (!context) return;
+  if (!greetingAudioSeen) {
+    greetingAudioSeen = true;
+    if (greetingFallbackTimer) clearTimeout(greetingFallbackTimer);
+    greetingGuardTimer = setTimeout(() => { microphoneUploadBlocked = false; }, 700);
+  }
   const input = new Int16Array(buffer);
   const audio = context.createBuffer(1, input.length, PLAYBACK_RATE);
   const channel = audio.getChannelData(0);
@@ -248,6 +259,13 @@ function connectAgent() {
   activeSocket.onopen = () => {
     if (generation !== sessionGeneration || socket !== activeSocket) return;
     agentConnected = true;
+    greetingAudioSeen = false;
+    microphoneUploadBlocked = true;
+    greetingFallbackTimer = setTimeout(() => {
+      if (generation !== sessionGeneration || socket !== activeSocket || greetingAudioSeen) return;
+      microphoneUploadBlocked = false;
+      setStatus('Connected — greeting delayed; you can speak now', 'live');
+    }, 5000);
     setStatus('Connected — listen for the greeting', 'live');
   };
   activeSocket.onmessage = ({data}) => {
@@ -255,6 +273,10 @@ function connectAgent() {
     if (typeof data === 'string') {
       const event = JSON.parse(data);
       if (event.type === 'clear') { clearPlayback(); setStatus('Interrupted — listening', 'live'); }
+      if (event.type === 'transcript') {
+        transcriptEl.textContent = `Heard: ${event.text}`;
+        if (event.final) setStatus('Understood — preparing the answer', 'live');
+      }
     } else {
       playAgentPCM(data);
       setStatus('VaaniSeva is speaking — you can interrupt', 'live');
@@ -266,6 +288,9 @@ function connectAgent() {
   activeSocket.onclose = () => {
     if (generation !== sessionGeneration || socket !== activeSocket) return;
     agentConnected = false;
+    microphoneUploadBlocked = false;
+    if (greetingGuardTimer) clearTimeout(greetingGuardTimer);
+    if (greetingFallbackTimer) clearTimeout(greetingFallbackTimer);
     socket = null;
     if (context) setStatus('Agent disconnected; microphone check still works', 'error');
   };
@@ -276,6 +301,10 @@ async function stopAll() {
   stoppingPromise = (async () => {
     ++sessionGeneration;
     agentConnected = false;
+    microphoneUploadBlocked = false; greetingAudioSeen = false;
+    if (greetingGuardTimer) clearTimeout(greetingGuardTimer);
+    if (greetingFallbackTimer) clearTimeout(greetingFallbackTimer);
+    greetingGuardTimer = greetingFallbackTimer = null;
     clearPlayback();
 
     const oldSocket = socket, oldContext = context, oldStream = stream;
@@ -300,6 +329,7 @@ async function stopAll() {
     nextPlay = 0; playing = [];
     recording = []; recordingFrames = 0; pcmCarry = []; micReady = false;
     level.style.width = '0'; db.textContent = '−∞ dB'; mic.textContent = 'No microphone selected';
+    transcriptEl.textContent = '';
     micButton.disabled = false; micButton.textContent = '1. Start mic check';
     productButton.disabled = false; productButton.textContent = 'Start voice conversation';
     playButton.disabled = true; agentButton.disabled = true; stopButton.disabled = true;
