@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 from vaaniseva_rt.knowledge import KnowledgeService, create_mcp_server
 from vaaniseva_rt.memory import SafeMemoryStore
-from vaaniseva_rt.tools import build_llm_tools, exact_scheme_spoken_response
+from vaaniseva_rt.tools import build_llm_tools, exact_scheme_spoken_response, mandi_spoken_response
 
 
 def _payload(name: str) -> dict:
@@ -65,3 +65,14 @@ def test_exact_scheme_tool_speaks_once_without_a_second_llm_pass(tmp_path):
     assert callbacks[0][1].run_llm is False
     assert len(frames) == 1
     assert "छह हज़ार रुपये" in frames[0].text
+
+
+def test_hindi_mandi_answer_is_application_owned_and_has_natural_numbers():
+    speech = mandi_spoken_response(
+        {"ok": True, "records": [{"district": "Dhar", "modal_price": "2675"}, {"district": "Dewas", "modal_price": "2500"}]},
+        "hi", "गेहूँ", "मध्य प्रदेश",
+    )
+
+    assert speech is not None
+    assert "दो हज़ार छह सौ पचहत्तर" in speech
+    assert "**" not in speech

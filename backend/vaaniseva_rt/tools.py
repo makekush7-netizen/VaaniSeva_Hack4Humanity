@@ -60,6 +60,58 @@ def exact_scheme_spoken_response(payload: dict[str, Any], language: str) -> str 
     return choices.get(language, choices["hi"])
 
 
+_HINDI_ONES = (
+    "शून्य", "एक", "दो", "तीन", "चार", "पाँच", "छह", "सात", "आठ", "नौ",
+    "दस", "ग्यारह", "बारह", "तेरह", "चौदह", "पंद्रह", "सोलह", "सत्रह", "अठारह", "उन्नीस",
+    "बीस", "इक्कीस", "बाईस", "तेईस", "चौबीस", "पच्चीस", "छब्बीस", "सत्ताईस", "अट्ठाईस", "उनतीस",
+    "तीस", "इकतीस", "बत्तीस", "तैंतीस", "चौंतीस", "पैंतीस", "छत्तीस", "सैंतीस", "अड़तीस", "उनतालीस",
+    "चालीस", "इकतालीस", "बयालीस", "तैंतालीस", "चवालीस", "पैंतालीस", "छियालीस", "सैंतालीस", "अड़तालीस", "उनचास",
+    "पचास", "इक्यावन", "बावन", "तिरेपन", "चौवन", "पचपन", "छप्पन", "सत्तावन", "अट्ठावन", "उनसठ",
+    "साठ", "इकसठ", "बासठ", "तिरसठ", "चौंसठ", "पैंसठ", "छियासठ", "सड़सठ", "अड़सठ", "उनहत्तर",
+    "सत्तर", "इकहत्तर", "बहत्तर", "तिहत्तर", "चौहत्तर", "पचहत्तर", "छिहत्तर", "सतहत्तर", "अठहत्तर", "उन्नासी",
+    "अस्सी", "इक्यासी", "बयासी", "तिरासी", "चौरासी", "पचासी", "छियासी", "सत्तासी", "अट्ठासी", "नवासी",
+    "नब्बे", "इक्यानवे", "बानवे", "तिरानवे", "चौरानवे", "पंचानवे", "छियानवे", "सत्तानवे", "अट्ठानवे", "निन्यानवे",
+)
+
+
+def _hindi_number(value: Any) -> str:
+    """Read common mandi amounts naturally instead of digit-by-digit."""
+    try:
+        number = int(str(value).replace(",", "").strip())
+    except (TypeError, ValueError):
+        return str(value).strip()
+    if not 0 <= number < 100_000:
+        return str(number)
+    if number < 100:
+        return _HINDI_ONES[number]
+    if number < 1_000:
+        hundreds, remainder = divmod(number, 100)
+        return f"{_HINDI_ONES[hundreds]} सौ" + (f" {_HINDI_ONES[remainder]}" if remainder else "")
+    thousands, remainder = divmod(number, 1_000)
+    return f"{_hindi_number(thousands)} हज़ार" + (f" {_hindi_number(remainder)}" if remainder else "")
+
+
+def mandi_spoken_response(payload: dict[str, Any], language: str, commodity: str, state: str = "", district: str = "", market: str = "") -> str | None:
+    """Give a short application-owned Hindi mandi recap from verified observations."""
+    if language != "hi" or not payload.get("ok"):
+        return None
+    records = [record for record in payload.get("records", []) if isinstance(record, dict)]
+    if not records:
+        return None
+    place = market or district or state or "बताया गया स्थान"
+    details: list[str] = []
+    for record in records[:3]:
+        modal = record.get("modal_price")
+        if modal in (None, ""):
+            continue
+        location = str(record.get("district") or record.get("market") or place).strip()
+        details.append(f"{location} में औसत भाव {_hindi_number(modal)} रुपये प्रति क्विंटल है")
+    if not details:
+        return None
+    prefix = f"आज की सरकारी मंडी जानकारी में {state or place} के लिए {commodity} के भाव मिले हैं।"
+    return f"{prefix} {'। '.join(details)}। किसी एक मंडी या जिले का भाव चाहिए तो उसका नाम बोलिए।"
+
+
 def build_llm_tools(
     server: MCPServer,
     memory: SafeMemoryStore,
@@ -158,7 +210,19 @@ def build_llm_tools(
     async def get_mandi_price(params: FunctionCallParams, commodity: str, state: str = "", district: str = "", market: str = ""):
         """Get sourced recent mandi observations; never guess if records are absent."""
         await activate_persona("hitesh")
-        await invoke(params, "get_mandi_price", {"commodity": commodity, "state": state, "district": district, "market": market})
+        payload = await fetch("get_mandi_price", {"commodity": commodity, "state": state, "district": district, "market": market})
+        spoken = mandi_spoken_response(payload, language_state["active"], commodity, state, district, market)
+        if spoken:
+            payload = {
+                **payload,
+                "spoken_by_application": True,
+                "instruction": "The application already spoke the complete grounded mandi answer. Do not generate another reply.",
+            }
+            await params.result_callback(payload, properties=FunctionCallResultProperties(run_llm=False))
+            await params.pipeline_worker.queue_frames([TTSSpeakFrame(spoken, append_to_context=True)])
+            logger.bind(persona="hitesh", language=language_state["active"], commodity=commodity, state=state).info("mandi_spoken_deterministically")
+            return
+        await params.result_callback(payload)
 
     async def switch_persona(params: FunctionCallParams, persona: str):
         """Switch this call to Arya, Hitesh, or Vidya when the caller asks for that agent."""
