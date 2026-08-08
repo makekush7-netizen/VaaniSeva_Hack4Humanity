@@ -2,7 +2,13 @@ import asyncio
 from io import BytesIO
 from unittest.mock import Mock, patch
 
-from vaaniseva_rt.knowledge import LegacyVectorRAG, KnowledgeService, create_mcp_server, tool_payload
+from vaaniseva_rt.knowledge import (
+    LegacyVectorRAG,
+    KnowledgeService,
+    _matches_mandi_location,
+    create_mcp_server,
+    tool_payload,
+)
 
 
 def test_legacy_vector_rag_loads_embeddings_from_dynamodb_projection():
@@ -157,6 +163,19 @@ def test_mandi_never_invents_without_api_key():
     assert result["ok"] is False
     assert result["records"] == []
     assert "no price" in result["warning"].lower()
+
+
+def test_mandi_location_guard_rejects_a_different_government_market_even_if_api_returns_it():
+    record = {"state": "Himachal Pradesh", "district": "Kangra", "market": "SMY Jassur"}
+
+    assert not _matches_mandi_location(record, state="Madhya Pradesh")
+    assert _matches_mandi_location(record, state="Himachal Pradesh", district="Kangra")
+
+
+def test_mandi_location_guard_accepts_requested_state_and_district():
+    record = {"state": "Maharashtra", "district": "Pune", "market": "Pune(Moshi) APMC"}
+
+    assert _matches_mandi_location(record, state="Maharashtra", district="Pune")
 
 
 def test_agriculture_information_routes_pests_to_safe_crop_follow_up():

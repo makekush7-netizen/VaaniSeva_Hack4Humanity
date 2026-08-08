@@ -12,6 +12,7 @@ from typing import Any
 import aiohttp
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
+from loguru import logger
 from mcp.server.mcpserver import MCPServer
 
 DATA_GOV_MANDI_RESOURCE = "https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070"
@@ -19,8 +20,24 @@ MANDI_TERMS = {
     "गेहूँ": "Wheat", "गेहूं": "Wheat", "गेंहू": "Wheat", "धान": "Paddy(Dhan)(Common)",
     "प्याज": "Onion", "आलू": "Potato", "टमाटर": "Tomato",
     "महाराष्ट्र": "Maharashtra", "उत्तर प्रदेश": "Uttar Pradesh", "मध्य प्रदेश": "Madhya Pradesh",
-    "पुणे": "Pune", "मुंबई": "Mumbai", "नागपुर": "Nagpur", "नाशिक": "Nasik",
+    "पुणे": "Pune", "मुंबई": "Mumbai", "नागपुर": "Nagpur", "नाशिक": "Nasik", "Nashik": "Nasik",
 }
+
+
+def _normalise_location(value: object) -> str:
+    """Compare government market labels without accepting a different location."""
+    return re.sub(r"\s+", " ", str(value or "").strip()).casefold()
+
+
+def _matches_mandi_location(
+    record: dict[str, Any], *, state: str = "", district: str = "", market: str = ""
+) -> bool:
+    """Fail closed if data.gov.in ignores or misapplies a location filter."""
+    requested = (("state", state), ("district", district), ("market", market))
+    return all(
+        not expected or _normalise_location(record.get(field)) == _normalise_location(expected)
+        for field, expected in requested
+    )
 
 SCHEMES = [
     {
@@ -424,7 +441,20 @@ class KnowledgeService:
             async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
                 async with session.get(DATA_GOV_MANDI_RESOURCE, params=params) as response:
                     response.raise_for_status()
-                    records = (await response.json()).get("records", [])
+                    source_records = (await response.json()).get("records", [])
+            records = [
+                record for record in source_records
+                if isinstance(record, dict) and _matches_mandi_location(
+                    record, state=state, district=district, market=market
+                )
+            ]
+            if len(records) != len(source_records):
+                # data.gov.in occasionally returns a record outside an accepted
+                # state/district filter. Never quote that as the caller's market.
+                logger.warning(
+                    "mandi_location_mismatch_filtered requested_state={} requested_district={} requested_market={} returned={} kept={}",
+                    state, district, market, len(source_records), len(records),
+                )
             result = self._result(
                 DATA_GOV_MANDI_RESOURCE,
                 records,
