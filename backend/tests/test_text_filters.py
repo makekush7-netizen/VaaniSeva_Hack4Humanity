@@ -83,12 +83,3 @@ def test_filter_does_not_rewrite_natural_hindi():
         return await text_filter.filter("लाइव जानकारी अभी उपलब्ध नहीं है। कृपया पुनः प्रयास करें।")
 
     assert asyncio.run(run()) == "लाइव जानकारी अभी उपलब्ध नहीं है। कृपया पुनः प्रयास करें।"
-
-
-def test_filter_removes_streamed_markdown_before_tts():
-    text_filter = PersonaSpeechFilter(lambda: "hitesh", "test")
-
-    async def run():
-        return await text_filter.filter("1. **Gandhwani APMC**: ₹2675 per quintal")
-
-    assert asyncio.run(run()) == "Gandhwani APMC: ₹2675 per quintal"

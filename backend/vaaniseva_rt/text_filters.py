@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-import re
 from typing import Any, Callable
 
 from loguru import logger
@@ -149,25 +148,11 @@ class PersonaSpeechFilter(BaseTextFilter):
             text = text.replace(form, "वाणी सेवा")
         return text
 
-    @staticmethod
-    def _strip_markdown(text: str) -> str:
-        """Keep formatting tokens out of the speech provider.
-
-        Bedrock can occasionally stream Markdown despite the voice-only prompt.  In
-        particular, a bold marker may arrive as its own streaming chunk; Sarvam
-        rejects that chunk and tears down synthesis.  Convert links to their label
-        and remove presentation-only Markdown before every TTS provider.
-        """
-        text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
-        text = re.sub(r"(?m)^\s*(?:[-+*]|\d+[.)])\s+", "", text)
-        text = re.sub(r"(?m)^\s*#{1,6}\s+", "", text)
-        return text.replace("**", "").replace("__", "").replace("`", "")
-
     async def filter(self, text: str) -> str:
         persona = self._active_persona()
-        filtered = self._strip_markdown(self._normalize_brand_name(
+        filtered = self._normalize_brand_name(
             self._normalize_scheme_names(self._normalize_verified_scheme_facts(text))
-        ))
+        )
         if persona == "hitesh":
             filtered = self._replace_all(filtered, self.MASCULINE_REPLACEMENTS)
         elif persona in {"arya", "vidya"}:
